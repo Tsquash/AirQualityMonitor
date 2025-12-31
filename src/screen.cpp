@@ -1,6 +1,8 @@
 #include <Arduino.h>
 #include <SPI.h>
 #include "screen.h"
+#include "sense.h" 
+#include "battery.h"
 
 #include "Adafruit_ThinkInk.h"
 
@@ -27,15 +29,19 @@ void initializeScreen(){
 void screenTest() {
     display.clearDisplay();
     display.clearBuffer();
-    display.setTextSize(3);
-    display.setCursor((display.width() - 144) / 2, (display.height() - 24) / 2);
+    display.setTextSize(2);
+    display.setCursor(10, 10);
     display.setTextColor(EPD_BLACK);
-    display.print("Tri");
+    display.printf("Battery: ");
     display.setTextColor(EPD_RED);
-    display.print("Color");
-    display.display();
-    delay(5000);
-    display.clearBuffer();
-    display.clearDisplay();
+    display.printf("%d%%\n", getBatteryPercentage());
+    display.setTextColor(EPD_BLACK);
+    display.printf("Temperature: ");
+    display.setTextColor(EPD_RED);
+    display.printf("%.1f C\n", getTemp());
+    display.setTextColor(EPD_BLACK);
+    display.printf("Humidity: ");
+    display.setTextColor(EPD_RED);
+    display.printf("%.1f %%\n", getHumidity());
     display.display();
 }
