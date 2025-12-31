@@ -1,10 +1,12 @@
 #include <Arduino.h>
 //#include "sense.h"
 #include "screen.h"
+#include "battery.h"
 
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(115200);
+  delay(3000);
   initializeScreen();
   /*
   if(!initializeSensors()){
@@ -31,13 +33,12 @@ void setup() {
     Serial.println("Failed to turn off SGP41");
   } 
   */
-  Serial.println("Screen test");
   screenTest();
-  Serial.println("Screen test over");
-  while(true);
 }
 
 void loop() {
+  Serial.printf("Battery Percentage: %d%%\n", getBatteryPercentage());
+  delay(2000);
   // put your main code here, to run repeatedly:
   /*
   updateDHT();

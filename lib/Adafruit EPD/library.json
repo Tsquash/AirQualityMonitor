@@ -1,0 +1,11 @@
+{
+  "name": "Adafruit EPD",
+  "version": "4.6.7",
+  "build": {
+    "libLDFMode": "off"
+  },
+  "dependencies": {
+    "Adafruit GFX Library": "*",
+    "Adafruit BusIO": "*"
+  }
+}
