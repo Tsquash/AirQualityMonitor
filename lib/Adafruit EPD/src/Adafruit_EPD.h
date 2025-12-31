@@ -206,23 +206,6 @@ class Adafruit_EPD : public Adafruit_GFX {
   void dcLow();
 };
 
-#include "drivers/Adafruit_ACeP.h"
-#include "drivers/Adafruit_EK79686.h"
-#include "drivers/Adafruit_IL0373.h"
-#include "drivers/Adafruit_IL0398.h"
-#include "drivers/Adafruit_IL91874.h"
-#include "drivers/Adafruit_JD79661.h"
-#include "drivers/Adafruit_JD79667.h"
-#include "drivers/Adafruit_SSD1608.h"
-#include "drivers/Adafruit_SSD1619.h"
-#include "drivers/Adafruit_SSD1675.h"
-#include "drivers/Adafruit_SSD1675B.h"
-#include "drivers/Adafruit_SSD1680.h"
-#include "drivers/Adafruit_SSD1681.h"
-#include "drivers/Adafruit_SSD1683.h"
-#include "drivers/Adafruit_UC8151D.h"
-#include "drivers/Adafruit_UC8179.h"
 #include "drivers/Adafruit_UC8253.h"
-#include "drivers/Adafruit_UC8276.h"
 
 #endif /* _ADAFRUIT_EPD_H_ */
