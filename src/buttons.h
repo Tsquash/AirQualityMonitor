@@ -3,8 +3,10 @@
 
 #include "InterruptDrivenButton.h"
 
+#define BTN1 1
+#define BTN2 16 
+
 void setupButtons();
-bool btn1Boot();
-bool btn2Boot();
+bool checkBootHold(int pin, unsigned long holdTime);
 
 #endif

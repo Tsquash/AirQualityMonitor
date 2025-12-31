@@ -12,7 +12,7 @@ int getBatteryPercentage() {
     float battery_voltage = (raw_mv * 2.5) / 1000.0; // Divide by 1000 to get Volts
 
     // Debugging: Print this to Serial to see what is actually happening!
-    Serial.print("Pin mV: "); Serial.print(raw_mv);
+    Serial.print("[BAT] Pin mV: "); Serial.print(raw_mv);
     Serial.print(" | Bat V: "); Serial.println(battery_voltage);
 
     if (battery_voltage >= 4.20) return 100;

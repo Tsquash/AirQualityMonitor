@@ -35,30 +35,29 @@ bool updateDHT(){
     switch (status)
     {
       case DHT20_OK:
-        //Serial.print("OK");
         tempC = DHT.getTemperature();
         humidity = DHT.getHumidity();
         return true;
       case DHT20_ERROR_CHECKSUM:
-        Serial.print("Checksum error");
+        Serial.print("[DHT] Checksum error");
         break;
       case DHT20_ERROR_CONNECT:
-        Serial.print("Connect error");
+        Serial.print("[DHT] Connect error");
         break;
       case DHT20_MISSING_BYTES:
-        Serial.print("Missing bytes");
+        Serial.print("[DHT] Missing bytes");
         break;
       case DHT20_ERROR_BYTES_ALL_ZERO:
-        Serial.print("All bytes read zero");
+        Serial.print("[DHT] All bytes read zero");
         break;
       case DHT20_ERROR_READ_TIMEOUT:
-        Serial.print("Read time out");
+        Serial.print("[DHT] Read time out");
         break;
       case DHT20_ERROR_LASTREAD:
-        Serial.print("Error read too fast");
+        Serial.print("[DHT] Error read too fast");
         break;
       default:
-        Serial.print("Unknown error");
+        Serial.print("[DHT] Unknown error");
         break;
     }
     Serial.print("\n"); 
@@ -75,7 +74,7 @@ double getHumidity(){
 
 void printSGPError(uint16_t error, const char* functionName) {
     char errorMessage[256];
-    Serial.print("Error trying to execute ");
+    Serial.print("[SGP41] Error trying to execute ");
     Serial.print(functionName);
     Serial.print("(): ");
     errorToString(error, errorMessage, 256);
