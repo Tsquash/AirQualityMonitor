@@ -12,6 +12,7 @@
 
 class WiFiManager {
 public:
+    uint8_t* mac;
     WiFiManager();
     bool begin();
     bool connectToWiFi();

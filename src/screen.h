@@ -2,6 +2,8 @@
 #define SCREEN_H
  
 void initializeScreen();
+void screenPrint(String message);
+void displayAP(uint8_t* mac);
 void screenTest();
 /*
 bool updateMinute(); // updates the minute value and sets air quality vars

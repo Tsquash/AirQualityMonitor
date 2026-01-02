@@ -8,5 +8,5 @@
 
 void setupButtons();
 bool checkBootHold(int pin, unsigned long holdTime);
-
+// TODO: if buttons are not used besides boot, remove library
 #endif

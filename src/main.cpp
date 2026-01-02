@@ -1,54 +1,72 @@
 #include <Arduino.h>
-#include "sense.h"
-#include "screen.h"
-#include "battery.h"
-#include "buttons.h"
-#include "utils.h"
-#include "wifi_manager.h"
-#include "web_portal.h"
-#include <esp_task_wdt.h>
+#include "sense.h" // rtc and sensors (I2C handling)
+#include "screen.h" // eink
+#include "battery.h" // battery monitoring
+#include "buttons.h" // button handling
+#include "utils.h" // file management helpers
+#include "wifi_manager.h" // connecting to wifi 
+#include "web_portal.h" // captive portal 
+#include "time_manager.h" // all things NTP 
 
 WiFiManager wifiManager;
 WebPortal webPortal;
+TimeManager timeManager;
 
+void fallbackAP();
 void handleCaptivePortal();
 
 void setup()
 {
   Serial.begin(115200);
 
+  LittleFS.begin(true);
+  readConfig();
+  setupButtons();
+  initializeScreen();
+
   if (checkBootHold(BTN1, 1000UL))
   {
     Serial.println("[BTN1] Held at boot");
-    // TODO: Screen display "Configuration Mode"
-    LittleFS.begin(true);
-    readConfig();
-    wifiManager.startAP(); // start the AP, since you held down btn1
-    webPortal.begin(); // start the captive portal
-    handleCaptivePortal(); // infinite loop that resets ESP once config saved
+    fallbackAP();
   }
   if (checkBootHold(BTN2, 1000UL))
   {
     Serial.println("[BTN2] Held at boot");
-    // TODO: Screen display "Matter Commissioning Mode"
+    screenPrint("Entering Matter Commissioning Mode");
   }
-
-  LittleFS.begin(true);
-  readConfig();
-
-  setupButtons();
-  initializeScreen();
-  if (!initializeSensors())
-  {
-    Serial.println("[SENSE] Initialization failed!");
-    while (true)
-    ; // halt execution
+ 
+  if (!initializeSensors()) Serial.println("[SENSE] Initialization failed!");
+  // no buttons were held, do I know the time?
+  if(rtcLostPower()){
+    // yes, do i have wifi creds?
+    if(json["ssid"].isNull() || json["pass"].isNull() || 
+        json["ssid"].as<String>() == "" || json["pass"].as<String>() == ""){
+      // no ->  start AP mode for config 
+      Serial.println("[RTC] No stored credentials to set RTC after power loss");
+      fallbackAP();
+    }
+    else{
+      // yes -> connect to wifi, get time from NTP to set RTC, then normal operation
+      if(!wifiManager.connectToWiFi()){
+        fallbackAP();
+      }
+      // wifi has connected, get time from NTP
+      if(!timeManager.begin()){
+        Serial.println("[NTP] TimeManager begin failed");
+      }
+      uint32_t hour = timeManager.getHour();
+      uint32_t minute = timeManager.getMinute();
+      uint32_t second = timeManager.getSecond();
+      uint32_t weekday = timeManager.getWeekday();
+      uint32_t day = timeManager.getDay();
+      uint32_t month = timeManager.getMonth();
+      uint32_t year = timeManager.getYear();
+      setRTCTime(hour, minute, second);
+      setRTCdate(day, weekday, month, year);
+    }
   }
+  // RTC either hasnt lost power or has now been set, continue normal operation
 
-  String ssid = json["ssid"].isNull() ? "Not set" : json["ssid"].as<String>();
-  String pass = json["pass"].isNull() ? "Not set" : json["pass"].as<String>();
-  Serial.printf("[WIFI] SSID: %s\n", ssid.c_str());
-  Serial.printf("[WIFI] PASS: %s\n", pass.c_str());
 
   updateDHT();
   screenTest();
@@ -75,7 +93,15 @@ void setup()
 
 void loop()
 {
+}
 
+void fallbackAP()
+{
+  Serial.println("[MAIN] Starting fallback AP...");
+  wifiManager.startAP(); // start the AP, since you held down btn1
+  webPortal.begin(); // start the captive portal
+  displayAP(wifiManager.mac);
+  handleCaptivePortal(); // infinite loop that resets ESP once config saved
 }
 
 void handleCaptivePortal()

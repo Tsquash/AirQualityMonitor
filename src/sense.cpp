@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include "sense.h"
+#include "screen.h"
 
 #include <Wire.h> 
 #include "DHT20.h"
@@ -10,6 +11,7 @@
 
 DHT20 DHT(&WIRE);
 SensirionI2CSgp41 SGP41;
+Max31328 RTC(&WIRE);
 
 float tempC = -40.0;
 float humidity = -1.0;
@@ -29,6 +31,7 @@ bool initializeSensors(){
   return success;
 }
 
+// DHT Functions
 bool updateDHT(){
     int status = DHT.read();
 
@@ -72,6 +75,7 @@ double getHumidity(){
   return humidityPercent = static_cast<double>(humidity);
 }
 
+// SGP41 Functions
 void printSGPError(uint16_t error, const char* functionName) {
     char errorMessage[256];
     Serial.print("[SGP41] Error trying to execute ");
@@ -134,4 +138,45 @@ bool turnOffSGP41() {
         return false;
     }
     return true;
+}
+
+// RTC Functions
+bool setRTCAlarms(){
+  return true;
+}
+bool rtcLostPower(){
+  max31328_calendar_t rtcDate = getRTCdate();
+  return rtcDate.year < 26;
+} 
+bool setRTCTime(uint32_t hour, uint32_t minute, uint32_t second){
+  bool isPM = hour > 12;
+  if(isPM) hour = hour - 12;
+  max31328_time_t time = {hour, minute, second, isPM, 1};
+  uint16_t error = RTC.set_time(time);
+  if(error != 0){ 
+    Serial.println("[RTC] Unable to set RTC time from NTP"); 
+    screenPrint("Unable to set time on RTC from NTP given these WiFi credentials. Restart device and try again.");
+    return false;
+  }
+  return true;
+}
+bool setRTCdate(uint32_t weekday, uint32_t date, uint32_t month, uint32_t year){
+  max31328_calendar_t cal = {weekday, date, month, year - 2000};
+  uint16_t error = RTC.set_calendar(cal);
+  if(error != 0){ 
+    Serial.println("[RTC] Unable to set RTC date from NTP"); 
+    screenPrint("Unable to set date on RTC from NTP given these WiFi credentials. Restart device and try again.");
+    return false;
+  }
+  return true;
+}
+max31328_time_t getRTCTime(){
+  max31328_time_t time;
+  RTC.get_time(&time);
+  return time;
+}
+max31328_calendar_t getRTCdate(){
+  max31328_calendar_t date;
+  RTC.get_calendar(&date);
+  return date;
 }

@@ -1,6 +1,8 @@
 #include "wifi_manager.h"
 
 WiFiManager::WiFiManager() {
+    this->mac = new uint8_t[6];
+    WiFi.macAddress(this->mac);
 }
 
 bool WiFiManager::begin() {
@@ -55,14 +57,12 @@ bool WiFiManager::connectToWiFi() {
 }
 
 bool WiFiManager::startAP() {
-    uint8_t mac[6];
-    WiFi.macAddress(mac);
-    String apName = "AirQuality-" + macLastThreeSegments(mac);
+    WiFi.mode(WIFI_AP);
+    WiFi.macAddress(this->mac);
+    String apName = "AirQuality-" + macLastThreeSegments(this->mac);
     
     Serial.print("[WIFI] Starting AP: ");
     Serial.println(apName);
-    
-    WiFi.mode(WIFI_AP);
     
     IPAddress apIP;
     apIP.fromString(AP_IP);
@@ -80,11 +80,7 @@ bool WiFiManager::startAP() {
 }
 
 bool WiFiManager::setupMDNS() {
-    uint8_t mac[6];
-    WiFi.macAddress(mac);
-    String hostname = "AirQuality-" + macLastThreeSegments(mac);
-    hostname.toLowerCase();
-    
+    String hostname = "AirQuality-" + macLastThreeSegments(this->mac);
     if (MDNS.begin(hostname.c_str())) {
         Serial.print("[MDNS] Responder started: ");
         Serial.println(hostname);

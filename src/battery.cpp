@@ -1,8 +1,6 @@
 #include <Arduino.h>
 #include "battery.h"
 
-#define BATTERY_PIN 0 // Analog pin A0
-
 int getBatteryPercentage() {
     // 1. Read the calibrated voltage at the pin in millivolts
     uint32_t raw_mv = analogReadMilliVolts(BATTERY_PIN); 

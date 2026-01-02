@@ -3,6 +3,7 @@
 #include "screen.h"
 #include "sense.h" 
 #include "battery.h"
+#include "utils.h"
 
 #include "Adafruit_ThinkInk.h"
 
@@ -26,11 +27,39 @@ void initializeScreen(){
     display.begin(THINKINK_TRICOLOR);
 }
 
+void screenPrint(String message){
+    Serial.printf("[SCREEN] %s", message);
+    display.clearDisplay();
+    display.clearBuffer();
+    display.setTextSize(2);
+    display.setCursor(0, 0);
+    display.setTextColor(EPD_BLACK);
+    display.print(message);
+    display.display();
+}
+
+void displayAP(uint8_t* mac) {
+    display.clearDisplay();
+    display.clearBuffer();
+    display.setTextSize(3);
+    display.setCursor(0, 10);
+    display.setTextColor(EPD_BLACK);
+    display.printf("Config Mode:\n");
+    display.setTextSize(2);
+    display.printf("Connect to WiFi SSID:\n");
+    display.setTextColor(EPD_RED);
+    display.printf("AirQuality-%s\n", macLastThreeSegments(mac).c_str());
+    display.setTextColor(EPD_BLACK);
+    display.printf("to configure this sensor.");
+    Serial.printf("[SCREEN] AP MODE AirQuality-%06X ", macLastThreeSegments(mac));
+    display.display();
+}
+
 void screenTest() {
     display.clearDisplay();
     display.clearBuffer();
     display.setTextSize(2);
-    display.setCursor(10, 10);
+    display.setCursor(0, 10);
     display.setTextColor(EPD_BLACK);
     display.printf("Battery: ");
     display.setTextColor(EPD_RED);
@@ -38,10 +67,19 @@ void screenTest() {
     display.setTextColor(EPD_BLACK);
     display.printf("Temperature: ");
     display.setTextColor(EPD_RED);
-    display.printf("%.1f C\n", getTemp());
+    display.printf("%.1fC\n", getTemp());
     display.setTextColor(EPD_BLACK);
     display.printf("Humidity: ");
     display.setTextColor(EPD_RED);
-    display.printf("%.1f %%\n", getHumidity());
+    display.printf("%.1f%%\n", getHumidity());
+    display.setTextColor(EPD_BLACK);
+    display.printf("Time: ");
+    display.setTextColor(EPD_RED);
+    display.printf("%02d:%02d\n", getRTCTime().hours, getRTCTime().minutes);
+    display.display();
+    display.setTextColor(EPD_BLACK);
+    display.printf("Date: ");
+    display.setTextColor(EPD_RED);
+    display.printf("%02d/%02d/%02d\n", getRTCdate().day, getRTCdate().month, getRTCdate().year);
     display.display();
 }
