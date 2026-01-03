@@ -30,7 +30,6 @@ private:
     
     String getNetworkSettingsHTML();
     String getBasicSettingsHTML();
-    String getVisualSettingsHTML();
     String getTimezoneSettingsHTML();
 };
 

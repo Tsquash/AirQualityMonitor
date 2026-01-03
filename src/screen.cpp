@@ -80,6 +80,6 @@ void screenTest() {
     display.setTextColor(EPD_BLACK);
     display.printf("Date: ");
     display.setTextColor(EPD_RED);
-    display.printf("%02d/%02d/%02d\n", getRTCdate().day, getRTCdate().month, getRTCdate().year);
+    display.printf("%02d/%02d/%02d\n", getRTCdate().month, getRTCdate().day, getRTCdate().year);
     display.display();
 }

@@ -23,8 +23,8 @@ double humidityPercent = -1.0;
 * return true if all sensors initialize correctly
 */
 bool initializeSensors(){
-  bool success = WIRE.setPins(22, 23) 
-        && WIRE.begin(22, 23) 
+  bool success = WIRE.setPins(22, 23)
+        && WIRE.begin(22, 23)
         && WIRE.setClock(100000) 
         && DHT.begin();
   SGP41.begin(WIRE); // has void return
@@ -149,23 +149,33 @@ bool rtcLostPower(){
   return rtcDate.year < 26;
 } 
 bool setRTCTime(uint32_t hour, uint32_t minute, uint32_t second){
-  bool isPM = hour > 12;
-  if(isPM) hour = hour - 12;
-  max31328_time_t time = {hour, minute, second, isPM, 1};
+  bool isPM = hour >= 12;
+  if(hour > 12) hour = hour - 12;
+  if(hour == 0) hour = 12; // midnight is 12 AM
+  max31328_time_t time;
+  time.seconds = second;
+  time.minutes = minute;
+  time.hours   = hour;
+  time.am_pm   = isPM;
+  time.mode    = 1; // 1 = 12-hour mode
   uint16_t error = RTC.set_time(time);
   if(error != 0){ 
     Serial.println("[RTC] Unable to set RTC time from NTP"); 
-    screenPrint("Unable to set time on RTC from NTP given these WiFi credentials. Restart device and try again.");
+    //TODO: add when B&W screenPrint("Unable to set time on RTC from NTP given these WiFi credentials. Restart device and try again.");
     return false;
   }
   return true;
 }
 bool setRTCdate(uint32_t weekday, uint32_t date, uint32_t month, uint32_t year){
-  max31328_calendar_t cal = {weekday, date, month, year - 2000};
+  max31328_calendar_t cal;
+  cal.date = date;
+  cal.month = month;
+  cal.year = year - 2000;
+  cal.day = weekday;
   uint16_t error = RTC.set_calendar(cal);
   if(error != 0){ 
     Serial.println("[RTC] Unable to set RTC date from NTP"); 
-    screenPrint("Unable to set date on RTC from NTP given these WiFi credentials. Restart device and try again.");
+    //TODO: add when B&W screenPrint("Unable to set date on RTC from NTP given these WiFi credentials. Restart device and try again.");
     return false;
   }
   return true;

@@ -21,6 +21,7 @@ void setup()
 
   LittleFS.begin(true);
   readConfig();
+
   setupButtons();
   initializeScreen();
 
@@ -32,12 +33,18 @@ void setup()
   if (checkBootHold(BTN2, 1000UL))
   {
     Serial.println("[BTN2] Held at boot");
-    screenPrint("Entering Matter Commissioning Mode");
+    //TODO: add when B&W screenPrint("Entering Matter Commissioning Mode");
   }
  
   if (!initializeSensors()) Serial.println("[SENSE] Initialization failed!");
-  // no buttons were held, do I know the time?
-  if(rtcLostPower()){
+  // no buttons were held, do I know the time, or do I need to set it because config was changed?
+  
+  if(rtcLostPower() || (!json["just_restarted"].isNull() && json["just_restarted"].as<int>() == 1)){ 
+    Serial.println("[MAIN] either detected restart after captive portal save or RTC lost power, attempt to update RTC");
+
+    json["just_restarted"] = 0;
+    saveConfig();
+
     // yes, do i have wifi creds?
     if(json["ssid"].isNull() || json["pass"].isNull() || 
         json["ssid"].as<String>() == "" || json["pass"].as<String>() == ""){
@@ -69,7 +76,7 @@ void setup()
 
 
   updateDHT();
-  screenTest();
+  // TODO: add back screenTest();
 
   /* SGP41 TYPICAL SEQUENCE
   if (startSGP41Conditioning()) {
@@ -93,6 +100,10 @@ void setup()
 
 void loop()
 {
+  updateDHT();
+  Serial.println(getTemp()); 
+  Serial.printf("%d:%d\n", getRTCTime().hours, getRTCTime().minutes);
+  delay(2000);
 }
 
 void fallbackAP()
@@ -100,7 +111,7 @@ void fallbackAP()
   Serial.println("[MAIN] Starting fallback AP...");
   wifiManager.startAP(); // start the AP, since you held down btn1
   webPortal.begin(); // start the captive portal
-  displayAP(wifiManager.mac);
+  // TODO: add back displayAP(wifiManager.mac);
   handleCaptivePortal(); // infinite loop that resets ESP once config saved
 }
 

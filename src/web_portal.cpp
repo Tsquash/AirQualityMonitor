@@ -118,7 +118,6 @@ void WebPortal::handleRoot()
     html += getHTMLFormStart();
     html += getNetworkSettingsHTML();
     html += getBasicSettingsHTML();
-    html += getVisualSettingsHTML();
     html += getTimezoneSettingsHTML();
     html += getHTMLFormEnd();
     html += getHTMLFooter();
@@ -164,20 +163,6 @@ void WebPortal::handleFormSubmit()
     if (server.hasArg("rst_ip"))
     {
         json["rst_ip"] = server.arg("rst_ip").toInt();
-    }
-
-    // Visual settings
-    if (server.hasArg("bri"))
-    {
-        json["bri"] = server.arg("bri").toInt();
-    }
-    if (server.hasArg("nmode"))
-    {
-        json["nmode"] = server.arg("nmode").toInt();
-    }
-    if (server.hasArg("cathode"))
-    {
-        json["cathode"] = server.arg("cathode").toInt();
     }
 
     // Timezone settings
@@ -237,6 +222,9 @@ void WebPortal::handleFormSubmit()
     response += "<script>setTimeout(function(){window.location.href='/';},5000);</script>";
     response += getHTMLFooter();
 
+    json["just_restarted"] = 1;
+    saveConfig();
+
     server.send(200, "text/html", response);
 
     restartFlag = true;
@@ -269,7 +257,7 @@ String WebPortal::getHTMLFooter()
 
 String WebPortal::getNetworkSettingsHTML()
 {
-    String html = "<h2 style=\"margin-top:0;\">Network settings</h2>"
+    String html = "<h2 style=\"margin-top:0;\">Network</h2>"
                   "<p>Configure WiFi connection.</p>"
                   "<div class=\"row\">"
                   "<label for=\"ssid\">WiFi SSID</label>"
@@ -278,13 +266,8 @@ String WebPortal::getNetworkSettingsHTML()
     html += "\"></div>"
             "<div class=\"row\">"
             "<label for=\"pass\">WiFi Password</label>"
-            "<input type=\"password\" id=\"pass\" name=\"pass\" value=\"";
-
-    const char *pass = json["pass"].as<const char *>();
-    if (pass != NULL && pass[0] != '\0')
-    {
-        html += "placeholder";
-    }
+            "<input type=\"text\" id=\"pass\" name=\"pass\" value=\"";
+    html += json["pass"].as<const char *>();
     html += "\"></div>";
 
     return html;
@@ -292,8 +275,7 @@ String WebPortal::getNetworkSettingsHTML()
 
 String WebPortal::getBasicSettingsHTML()
 {
-    String html = "<h2>Basic settings</h2>"
-                  "<p>Time format and display options.</p>"
+    String html = "<h2>General</h2>"
 
                   "<div class=\"row\"><label for=\"rst_cycle\">Cycle through digits after reset:</label>"
                   "<select id=\"rst_cycle\" name=\"rst_cycle\">"
@@ -323,58 +305,12 @@ String WebPortal::getBasicSettingsHTML()
     return html;
 }
 
-String WebPortal::getVisualSettingsHTML()
-{
-    String html = "<h2>Visual settings</h2>"
-                  "<p>Brightness and display modes.</p>"
-
-                  "<div class=\"row\"><label for=\"bri\">Brightness:</label>"
-                  "<select id=\"bri\" name=\"bri\">"
-                  "<option value=\"2\"";
-    html += (json["bri"].as<int>() == 2) ? " selected" : "";
-    html += ">High</option>"
-            //         "<option value=\"1\"";
-            // html += (json["bri"].as<int>() == 1) ? " selected" : "";
-            // html += ">Medium</option>"
-            "<option value=\"0\"";
-    html += (!json["bri"].isNull() && json["bri"].as<int>() == 0) ? " selected" : "";
-    html += ">Low</option>"
-            "</select></div>"
-
-            "<div class=\"row\"><label for=\"nmode\">Night mode:</label>"
-            "<select id=\"nmode\" name=\"nmode\">"
-            "<option value=\"0\"";
-    html += (json["nmode"].as<int>() == 0) ? " selected" : "";
-    html += ">None</option>"
-            "<option value=\"1\"";
-    html += (json["nmode"].as<int>() == 1) ? " selected" : "";
-    html += ">Low brightness 22:00-06:00</option>"
-            "</select></div>"
-
-            "<div class=\"row\"><label for=\"cathode\">Cathode poisoning prevention:</label>"
-            "<select id=\"cathode\" name=\"cathode\">"
-            "<option value=\"0\"";
-    html += (json["cathode"].as<int>() == 0) ? " selected" : "";
-    html += ">None</option>"
-            "<option value=\"1\"";
-    html += (json["cathode"].as<int>() == 1) ? " selected" : "";
-    html += ">10min cycle every hour 2-5 AM</option>"
-            "<option value=\"2\"";
-    html += (json["cathode"].isNull() || json["cathode"].as<int>() == 2) ? " selected" : "";
-    html += ">Continuous cycle between 2-5 AM (recommended)</option>"
-            "</select></div>";
-
-    return html;
-}
-
 String WebPortal::getTimezoneSettingsHTML()
 {
-    String html = "<h2>Timezone settings</h2>"
-                  "<p>Set your timezone and daylight saving rules.</p>"
-
-                  "<div class=\"row\"><label for=\"std_offset\">UTC offset in minutes (-660 to 660):</label>"
+    String html = "<h2>Timezone</h2>"
+                  "<div class=\"row\"><label for=\"std_offset\">UTC offset in minutes (-660 to 660, CST: -360):</label>"
                   "<input type=\"number\" id=\"std_offset\" name=\"std_offset\" min=\"-660\" max=\"660\" value=\"";
-    html += json["std_offset"].isNull() ? "-300" : String(json["std_offset"].as<int>());
+    html += json["std_offset"].isNull() ? "-360" : String(json["std_offset"].as<int>());
     html += "\"></div>"
 
             "<div class=\"row\"><label>"
@@ -383,15 +319,14 @@ String WebPortal::getTimezoneSettingsHTML()
     html += "> Enable Daylight Saving Time</label></div>"
 
             "<div id=\"dst_wrapper\">"
-            "<h3>Standard time starts:</h3>"
-
+            "<h3>Standard Time Starts:</h3>"
             "<div class=\"row\"><label for=\"std_week\">Week:</label>"
             "<select id=\"std_week\" name=\"std_week\">"
             "<option value=\"0\"";
     html += (json["std_week"].as<int>() == 0) ? " selected" : "";
     html += ">Last</option>"
             "<option value=\"1\"";
-    html += (json["std_week"].as<int>() == 1) ? " selected" : "";
+    html += (json["std_week"].isNull() ? 1 : json["std_week"].as<int>()) == 1 ? " selected" : "";
     html += ">First</option>"
             "<option value=\"2\"";
     html += (json["std_week"].as<int>() == 2) ? " selected" : "";
@@ -407,7 +342,7 @@ String WebPortal::getTimezoneSettingsHTML()
             "<div class=\"row\"><label for=\"std_day\">Day:</label>"
             "<select id=\"std_day\" name=\"std_day\">"
             "<option value=\"1\"";
-    html += (json["std_day"].as<int>() == 1) ? " selected" : "";
+    html += (json["std_day"].isNull() ? 1 : json["std_day"].as<int>()) == 1 ? " selected" : "";
     html += ">Sun</option>"
             "<option value=\"2\"";
     html += (json["std_day"].as<int>() == 2) ? " selected" : "";
@@ -436,7 +371,8 @@ String WebPortal::getTimezoneSettingsHTML()
     for (int i = 1; i <= 12; i++)
     {
         html += "<option value=\"" + String(i) + "\"";
-        html += (json["std_month"].as<int>() == i) ? " selected" : "";
+        int currentMonth = json["std_month"].isNull() ? 11 : json["std_month"].as<int>();
+        html += (currentMonth == i) ? " selected" : "";
         html += ">" + String(months[i - 1]) + "</option>";
     }
 
@@ -447,7 +383,7 @@ String WebPortal::getTimezoneSettingsHTML()
     html += json["std_hour"].isNull() ? "2" : String(json["std_hour"].as<int>());
     html += "\"></div>"
 
-            "<h3>Daylight saving time starts:</h3>"
+            "<h3>Daylight Saving Time Starts:</h3>"
 
             "<div class=\"row\"><label for=\"dst_week\">Week:</label>"
             "<select id=\"dst_week\" name=\"dst_week\">"
@@ -458,7 +394,7 @@ String WebPortal::getTimezoneSettingsHTML()
     html += (json["dst_week"].as<int>() == 1) ? " selected" : "";
     html += ">First</option>"
             "<option value=\"2\"";
-    html += (json["dst_week"].as<int>() == 2) ? " selected" : "";
+    html += (json["dst_week"].isNull() ?  2 : json["dst_week"].as<int>()) == 2 ? " selected" : "";
     html += ">Second</option>"
             "<option value=\"3\"";
     html += (json["dst_week"].as<int>() == 3) ? " selected" : "";
@@ -471,7 +407,7 @@ String WebPortal::getTimezoneSettingsHTML()
             "<div class=\"row\"><label for=\"dst_day\">Day:</label>"
             "<select id=\"dst_day\" name=\"dst_day\">"
             "<option value=\"1\"";
-    html += (json["dst_day"].as<int>() == 1) ? " selected" : "";
+    html += (json["dst_day"].isNull() ? 1 : json["dst_day"].as<int>()) == 1 ? " selected" : "";
     html += ">Sun</option>"
             "<option value=\"2\"";
     html += (json["dst_day"].as<int>() == 2) ? " selected" : "";
@@ -499,7 +435,8 @@ String WebPortal::getTimezoneSettingsHTML()
     for (int i = 1; i <= 12; i++)
     {
         html += "<option value=\"" + String(i) + "\"";
-        html += (json["dst_month"].as<int>() == i) ? " selected" : "";
+        int currentMonth = json["dst_month"].isNull() ? 3 : json["dst_month"].as<int>();
+        html += (currentMonth == i) ? " selected" : "";
         html += ">" + String(months[i - 1]) + "</option>";
     }
 
@@ -510,9 +447,9 @@ String WebPortal::getTimezoneSettingsHTML()
     html += json["dst_hour"].isNull() ? "2" : String(json["dst_hour"].as<int>());
     html += "\"></div>"
 
-            "<div class=\"row\"><label for=\"dst_offset\">DST UTC offset in minutes:</label>"
+            "<div class=\"row\"><label for=\"dst_offset\">DST UTC Offset in Minutes (Usually UTC offset +60):</label>"
             "<input type=\"number\" id=\"dst_offset\" name=\"dst_offset\" min=\"-660\" max=\"660\" value=\"";
-    html += json["dst_offset"].isNull() ? "-240" : String(json["dst_offset"].as<int>());
+    html += json["dst_offset"].isNull() ? "-300" : String(json["dst_offset"].as<int>());
     html += "\"></div>"
 
             "</div>";
