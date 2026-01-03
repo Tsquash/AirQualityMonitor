@@ -67,7 +67,8 @@ void screenTest() {
     display.setTextColor(EPD_BLACK);
     display.printf("Temperature: ");
     display.setTextColor(EPD_RED);
-    display.printf("%.1fC\n", getTemp());
+    // TODO change unit depending on config
+    display.printf("%.1fF\n", getTemp());
     display.setTextColor(EPD_BLACK);
     display.printf("Humidity: ");
     display.setTextColor(EPD_RED);

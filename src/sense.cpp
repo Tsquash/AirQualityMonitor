@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include "sense.h"
 #include "screen.h"
+#include "utils.h" 
 
 #include <Wire.h> 
 #include "DHT20.h"
@@ -15,9 +16,6 @@ Max31328 RTC(&WIRE);
 
 float tempC = -40.0;
 float humidity = -1.0;
-
-double tempF = -40.0;
-double humidityPercent = -1.0;
 
 /*
 * return true if all sensors initialize correctly
@@ -68,11 +66,14 @@ bool updateDHT(){
 }
 
 double getTemp(){ 
-  return tempF = (static_cast<double>(tempC) * 1.8) + 32.0;
+  if(json["unit_c"].as<int>() == 1){
+    return static_cast<double>(tempC);
+  }
+  return (static_cast<double>(tempC) * 1.8) + 32.0;
 }
 
 double getHumidity(){
-  return humidityPercent = static_cast<double>(humidity);
+  return static_cast<double>(humidity);
 }
 
 // SGP41 Functions
@@ -149,6 +150,7 @@ bool rtcLostPower(){
   return rtcDate.year < 26;
 } 
 bool setRTCTime(uint32_t hour, uint32_t minute, uint32_t second){
+  bool hr24 = json["hr24_enable"].as<int>() == 1;
   bool isPM = hour >= 12;
   if(hour > 12) hour = hour - 12;
   if(hour == 0) hour = 12; // midnight is 12 AM
@@ -157,7 +159,7 @@ bool setRTCTime(uint32_t hour, uint32_t minute, uint32_t second){
   time.minutes = minute;
   time.hours   = hour;
   time.am_pm   = isPM;
-  time.mode    = 1; // 1 = 12-hour mode
+  time.mode    = !hr24; // 1 = 12-hour mode
   uint16_t error = RTC.set_time(time);
   if(error != 0){ 
     Serial.println("[RTC] Unable to set RTC time from NTP"); 

@@ -2,53 +2,56 @@
 
 // HTML Templates in PROGMEM
 static const char HTML_HEADER[] PROGMEM = R"rawliteral(
-<!DOCTYPE html><html><head><meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=0">
-<title>Air Quality Monitor - Configuration</title>
-<style>
-html,body{margin:0;padding:0;font-size:16px;background:#120e02;}
-body,*{box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;}
-a{color:inherit;text-decoration:underline;}
-.wrapper{padding:30px 0;}
-.title-wrapper{max-width: 600px;margin: auto;text-align: center;}
-.title-wrapper h1{margin-bottom:5px;font-size: 1.8rem;color: #e3be50;}
-.title-wrapper p{color: #817967;}
-.container{margin:auto;padding:40px;max-width:600px;color:#fff;background:#28241a;box-shadow:0 0 100px #00000030;border-radius:8px;}
-.row{margin-bottom:15px;}
-h1{margin:0 0 10px 0;font-family:Arial,sans-serif;font-weight:300;font-size:2rem;}
-h1+p{margin-bottom:30px;}
-h2{color:#e3be50;margin:30px 0 0 0;font-family:Arial,sans-serif;font-weight:300;font-size:1.5rem;}
-h3{font-family:Arial,sans-serif;font-weight:300;color:#e3be50;font-size:1.2rem;margin:25px 0 10px 0;}
-p{font-size:.85rem;margin:0 0 20px 0;color:#c7c1b2;}
-label{display:block;width:100%;margin-bottom:5px;color:#fff;font-size: 14px;}
-input[type="text"],input[type="number"],input[type="password"],select{display:inline-block;width:100%;height:52px;line-height:50px;padding:0 15px;color:#fff;border:1px solid #464138;background:#464138;border-radius:3px;transition:.15s;box-shadow:none;outline:none;}
-input[type="text"]:hover,input[type="number"]:hover,input[type="password"]:hover,select:hover{border:1px solid #544e42;background:#544e42;}
-input[type="text"]:focus,input[type="password"]:focus,select:focus{border:1px solid #e3be50;}
-option{color:#fff;}
-button{display:block;width:100%;padding:15px 20px;margin-top:40px;font-size:1rem;font-weight:700;text-transform:uppercase;background:#dcbd60;border:0;border-radius:5px;cursor:pointer;transition:.15s;outline:none;}
-button:hover{background:#fbdb79;}
-.github{padding:15px;text-align:center;}
-.github a{color:inherit;text-decoration: none;transition:.15s;}
-.github a:hover{color:#dcbd60;text-decoration: none;}
-.github p{margin:0;color:#817967}
-.github p span{font-size:12px;display:inline-block;margin-top:5px;}
-#dst_wrapper{display:none;}
-input[type="checkbox"]{margin-right:8px;}
-@media all and (max-width:620px){
-.wrapper{padding:0;}
-.container{padding:25px 15px;border:0;border-radius:0;}
-}
-</style>
-</head><body>
+<!DOCTYPE html><html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=0">
+    <title>Air Quality Monitor - Configuration</title>
+    <style>
+        html, body { margin: 0; padding: 0; font-size: 16px; background: #242424; }
+        body, * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+        a { color: inherit; text-decoration: underline; }
+        .wrapper { padding: 30px 0; }
+        .title-wrapper { max-width: 600px; margin: auto; text-align: center; }
+        .title-wrapper h1 { margin-bottom: 5px; font-size: 1.8rem; color: #959595; }
+        .title-wrapper p { color: #959595; }
+        .container { margin: auto; padding: 40px; max-width: 600px; color: #fff; background: #3a3a3a; box-shadow: 0 0 100px #00000030; border-radius: 8px; }
+        .row { margin-bottom: 15px; }
+        h1 { margin: 0 0 10px 0; font-family: Arial, sans-serif; font-weight: 300; font-size: 2rem; }
+        h1+p { margin-bottom: 30px; }
+        h2 { color: #b2b2b2; margin: 30px 0 0 0; font-family: Arial, sans-serif; font-weight: 300; font-size: 1.5rem; }
+        h3 { font-family: Arial, sans-serif; font-weight: 300; color: #b2b2b2; font-size: 1.2rem; margin: 25px 0 10px 0; }
+        p { font-size: .85rem; margin: 0 0 20px 0; color: #c1c1c1; }
+        label { display: block; width: 100%; margin-bottom: 5px; color: #b2b2b2; font-size: 14px; }
+        input[type="text"], input[type="number"], input[type="password"], select { display: inline-block; width: 100%; height: 52px; line-height: 50px; padding: 0 15px; color: #fff; border: 1px solid #383838; background: #474747; border-radius: 3px; transition: .15s; box-shadow: none; outline: none; }
+        input[type="text"]:hover, input[type="number"]:hover, input[type="password"]:hover, select:hover { border: 1px solid #141414; background: #323232; }
+        input[type="text"]:focus, input[type="password"]:focus, select:focus { border: 1px solid #141414; }
+        option { color: #fff; }
+        button { display: block; width: 100%; padding: 15px 20px; margin-top: 40px; font-size: 1rem; font-weight: 700; text-transform: uppercase; background: #b2b2b2; border: 0; border-radius: 5px; cursor: pointer; transition: .15s; outline: none; }
+        button:hover { background: #878787; }
+        .github { padding: 15px; text-align: center; }
+        .github a { color: inherit; text-decoration: none; transition: .15s; }
+        .github a:hover { color: #878787; text-decoration: none; }
+        .github p { margin: 0; color: #b2b2b2; }
+        .github p span { font-size: 12px; display: inline-block; margin-top: 5px; }
+        #dst_wrapper { display: none; }
+        input[type="checkbox"] { margin-right: 8px; }
+        @media all and (max-width: 620px) {
+            .wrapper { padding: 0; }
+            .container { padding: 25px 15px; border: 0; border-radius: 0; }
+        }
+    </style>
+</head>
+<body>
 )rawliteral";
 
 static const char HTML_FOOTER[] PROGMEM = R"rawliteral(
 </div>
 <div class="github">
 <p>
-Air Quality Monitor 1.0 | <a href="https://github.com/Tsquash/AirQualityMonitor</a>
+Air Quality Monitor V1.0 | <a href="https://github.com/Tsquash/AirQualityMonitor"</a>
 <br>
-<span style="">Designed by Caleb Lightfoot 2025</span>
+<span style="">Designed by Caleb Lightfoot 2026</span>
 </p>
 </div>
 </div>
@@ -136,33 +139,21 @@ void WebPortal::handleFormSubmit()
     }
     if (server.hasArg("pass"))
     {
-        String pass = server.arg("pass");
-        if (pass != "placeholder")
-        {
-            json["pass"] = pass;
-        }
+        json["pass"] = server.arg("pass");
     }
 
     // Basic settings
-    if (server.hasArg("t_format"))
+    if (server.hasArg("hr24_enable"))
     {
-        json["t_format"] = server.arg("t_format").toInt();
+        json["hr24_enable"] = server.arg("hr24_enable").toInt();
     }
-    if (server.hasArg("zero"))
+    if (server.hasArg("unit_c"))
     {
-        json["zero"] = server.arg("zero").toInt();
+        json["unit_c"] = server.arg("unit_c").toInt();
     }
-    if (server.hasArg("ntp"))
+    if (server.hasArg("enable_matter"))
     {
-        json["ntp"] = server.arg("ntp");
-    }
-    if (server.hasArg("rst_cycle"))
-    {
-        json["rst_cycle"] = server.arg("rst_cycle").toInt();
-    }
-    if (server.hasArg("rst_ip"))
-    {
-        json["rst_ip"] = server.arg("rst_ip").toInt();
+        json["enable_matter"] = server.arg("enable_matter").toInt();
     }
 
     // Timezone settings
@@ -258,7 +249,7 @@ String WebPortal::getHTMLFooter()
 String WebPortal::getNetworkSettingsHTML()
 {
     String html = "<h2 style=\"margin-top:0;\">Network</h2>"
-                  "<p>Configure WiFi connection.</p>"
+                  "<p></p>"
                   "<div class=\"row\">"
                   "<label for=\"ssid\">WiFi SSID</label>"
                   "<input type=\"text\" id=\"ssid\" name=\"ssid\" value=\"";
@@ -275,39 +266,27 @@ String WebPortal::getNetworkSettingsHTML()
 
 String WebPortal::getBasicSettingsHTML()
 {
-    String html = "<h2>General</h2>"
-
-                  "<div class=\"row\"><label for=\"rst_cycle\">Cycle through digits after reset:</label>"
-                  "<select id=\"rst_cycle\" name=\"rst_cycle\">"
-                  "<option value=\"0\"";
-    html += (json["rst_cycle"].isNull() || json["rst_cycle"].as<int>() == 0) ? " selected" : "";
-    html += ">No</option>"
-            "<option value=\"1\"";
-    html += (json["rst_cycle"].as<int>() == 1) ? " selected" : "";
-    html += ">Yes</option>"
-            "</select></div>"
-
-            "<div class=\"row\"><label for=\"rst_ip\">Show IP address after reset:</label>"
-            "<select id=\"rst_ip\" name=\"rst_ip\">"
-            "<option value=\"1\"";
-    html += (json["rst_ip"].isNull() || json["rst_ip"].as<int>() == 1) ? " selected" : "";
-    html += ">Yes</option>"
-            "<option value=\"0\"";
-    html += (!json["rst_ip"].isNull() && json["rst_ip"].as<int>() == 0) ? " selected" : "";
-    html += ">No</option>"
-            "</select></div>"
-
-            "<div class=\"row\"><label for=\"ntp\">NTP server address</label>"
-            "<input type=\"text\" id=\"ntp\" name=\"ntp\" placeholder=\"pool.ntp.org\" value=\"";
-    html += json["ntp"].as<const char *>();
-    html += "\"><p>Leave empty to use pool.ntp.org</p></div>";
-
+    String html = "<h2>General</h2>";
+    html += "<p></p>"
+            "<div class=\"row\">"
+            "<input type=\"checkbox\" id=\"hr24_enable\" name=\"hr24_enable\" value=\"1\"";
+    html += (json["hr24_enable"].as<int>() == 1) ? " checked" : "";
+    html += "> Enable 24 Hour Time</label></div>";
+    html += "<div class=\"row\">"
+            "<input type=\"checkbox\" id=\"unit_c\" name=\"unit_c\" value=\"1\"";
+    html += (json["unit_c"].as<int>() == 1) ? " checked" : "";
+    html += "> Use Celsius</label></div>";
+    html += "<div class=\"row\">"
+            "<input type=\"checkbox\" id=\"enable_matter\" name=\"enable_matter\" value=\"1\"";
+    html += (json["enable_matter"].as<int>() == 1) ? " checked" : "";
+    html += "> Enable Matter over Thread</label></div>";
     return html;
 }
 
 String WebPortal::getTimezoneSettingsHTML()
 {
     String html = "<h2>Timezone</h2>"
+                  "<p></p>"
                   "<div class=\"row\"><label for=\"std_offset\">UTC offset in minutes (-660 to 660, CST: -360):</label>"
                   "<input type=\"number\" id=\"std_offset\" name=\"std_offset\" min=\"-660\" max=\"660\" value=\"";
     html += json["std_offset"].isNull() ? "-360" : String(json["std_offset"].as<int>());
