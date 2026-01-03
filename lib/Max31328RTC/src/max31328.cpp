@@ -61,7 +61,8 @@ Max31328::Max31328(TwoWire *i2c)
     while (1);
   }
   this->i2c = i2c;
-
+  // CHANGE FROM ORIGINAL LIBRARY HERE
+  // removed i2c begin since it is done in main.cpp later
   // this->i2c->begin();
 }
 
@@ -69,6 +70,8 @@ int Max31328::write(int address, const char *data, int length){
   int ret;
 
   i2c->beginTransmission(address);
+  // CHANGE FROM ORIGINAL LIBRARY HERE
+  // addded const cast to fix compiler error
   i2c->write((const uint8_t*)data, length);
   ret = i2c->endTransmission();
 
