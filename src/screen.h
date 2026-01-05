@@ -4,7 +4,8 @@
 void initializeScreen();
 void screenPrint(String message);
 void displayAP(uint8_t* mac);
-void screenTest();
+void drawPage1();
+void drawPage2();
 /*
 bool updateMinute(); // updates the minute value and sets air quality vars
 void updateHour(); // called by update minute

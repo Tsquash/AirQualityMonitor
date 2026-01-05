@@ -146,7 +146,7 @@ bool setRTCAlarms(){
   return true;
 }
 bool rtcLostPower(){
-  max31328_calendar_t rtcDate = getRTCdate();
+  max31328_calendar_t rtcDate = getRTCcal();
   return rtcDate.year < 26;
 } 
 bool setRTCTime(uint32_t hour, uint32_t minute, uint32_t second){
@@ -187,8 +187,8 @@ max31328_time_t getRTCTime(){
   RTC.get_time(&time);
   return time;
 }
-max31328_calendar_t getRTCdate(){
-  max31328_calendar_t date;
-  RTC.get_calendar(&date);
-  return date;
+max31328_calendar_t getRTCcal(){
+  max31328_calendar_t cal;
+  RTC.get_calendar(&cal);
+  return cal;
 }

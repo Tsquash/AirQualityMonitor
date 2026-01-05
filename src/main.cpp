@@ -65,18 +65,17 @@ void setup()
       uint32_t minute = timeManager.getMinute();
       uint32_t second = timeManager.getSecond();
       uint32_t weekday = timeManager.getWeekday();
-      uint32_t day = timeManager.getDay();
+      uint32_t date = timeManager.getDay();
       uint32_t month = timeManager.getMonth();
       uint32_t year = timeManager.getYear();
       setRTCTime(hour, minute, second);
-      setRTCdate(day, weekday, month, year);
+      setRTCdate(weekday, date, month, year);
     }
   }
   // RTC either hasnt lost power or has now been set, continue normal operation
 
-
   updateDHT();
-  // TODO: add back screenTest();
+  drawPage1();
 
   /* SGP41 TYPICAL SEQUENCE
   if (startSGP41Conditioning()) {

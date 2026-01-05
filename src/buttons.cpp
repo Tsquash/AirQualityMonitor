@@ -1,21 +1,13 @@
 #include <Arduino.h>
 #include "buttons.h"
 
-InterruptDrivenButton btn1(BTN1);
-InterruptDrivenButton btn2(BTN2);
-
-DEFINE_IDB_ISR(btn1) 
-DEFINE_IDB_ISR(btn2)
-
 void setupButtons(){
     pinMode(BTN1, INPUT_PULLUP);
     pinMode(BTN2, INPUT_PULLUP);
 
-    btn1.setup(IDB_ISR(btn1)); 
-    btn2.setup(IDB_ISR(btn2)); 
+    // TODO: initialize interrupts
 }
 
-// Standalone replacement - No Library needed
 bool checkBootHold(int pin, unsigned long holdTime) {
     unsigned long startPress = 0;
     unsigned long windowStart = millis();

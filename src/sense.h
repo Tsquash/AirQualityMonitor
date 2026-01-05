@@ -22,6 +22,6 @@ bool rtcLostPower(); // compare epoch to some arbitrary low (right now?)
 bool setRTCTime(uint32_t hour, uint32_t minute, uint32_t second);  // should set calendar and time from ntp 
 bool setRTCdate(uint32_t weekday, uint32_t day, uint32_t month, uint32_t year);
 max31328_time_t getRTCTime(); // returns the max time struct
-max31328_calendar_t getRTCdate(); // returns the max date struct
+max31328_calendar_t getRTCcal(); // returns the max date struct
 
 #endif

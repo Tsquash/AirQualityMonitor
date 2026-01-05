@@ -44,8 +44,8 @@ void TimeManager::setupTimezone() {
     int dstMonth = json["dst_month"].isNull() ? Mar : json["dst_month"].as<int>();
     int dstHour = json["dst_hour"].isNull() ? 2 : json["dst_hour"].as<int>();
     
-    TimeChangeRule EDT2 = {"EDT", (uint8_t)dstWeek, (uint8_t)dstDay, (uint8_t)dstMonth, (uint8_t)dstHour, dstOffset};
-    TimeChangeRule EST2 = {"EST", (uint8_t)stdWeek, (uint8_t)stdDay, (uint8_t)stdMonth, (uint8_t)stdHour, stdOffset};
+    TimeChangeRule EDT2 = {"EDT", (int8_t)dstWeek, (int8_t)dstDay, (int8_t)dstMonth, (int8_t)dstHour, dstOffset};
+    TimeChangeRule EST2 = {"EST", (int8_t)stdWeek, (int8_t)stdDay, (int8_t)stdMonth, (int8_t)stdHour, stdOffset};
     
     stdRule = new TimeChangeRule(EST2);
     dstRule = new TimeChangeRule(EDT2);
