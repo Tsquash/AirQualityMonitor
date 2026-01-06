@@ -13,6 +13,7 @@
 #include "myFont/RubikRegular9pt7b.h"
 #include "myFont/RubikMedium12pt7b.h"
 #include "myFont/RubikRegular6pt7b.h"
+#include "myFont/RubikItalic9pt7b.h"
 #include "myBitmap/bitmaps.h"
 
 #define EPD_DC 21
@@ -47,6 +48,87 @@ void initializeScreen(){
     display.begin(THINKINK_TRICOLOR);
 }
 
+// example: drawGraphSkeleton("CO2", getC02(), 1); 
+// where 1 tells it to occupy the first graph space
+void drawGraphSkeleton(String title, int value, uint8_t pos){
+    // vert line for UI
+    display.drawRect(10,36+((pos-1)*71),2,37,EPD_BLACK);
+    // title next to vert line
+    display.setFont(&Rubik_Regular9pt7b);
+    display.setCursor(15,49+((pos-1)*71));
+    display.print(title);
+    // print the current values next to the labels
+    display.setCursor(15,70+((pos-1)*71));
+    display.print(value);
+    // draw the graph axis
+    display.drawRect(104,29+((pos-1)*71), 2, 48, EPD_BLACK); 
+    display.drawBitmap(104, 77+((pos-1)*71), xAxisBitmap, XAXIS_WIDTH, XAXIS_HEIGHT, EPD_BLACK);
+    
+}
+
+// position is just which one of the three graphs on the board you draw the data points onto. can be 1-3, each 71 y values apart. 
+// allow C02 values (pos 1) to be 1-2000, anything above is just 2000. Need to be mapped to Y values 1-50
+// allow VOC, NOX values (pos 2&3) to be 1-500. Need to be mapped to Y values 1-50
+// get size of queue that was passed in. the first value you deque will be at 402 minus 5*size? 
+// deque and draw pixel until the queue is empty and you are drawing your last pixel at x=402. 
+// data point queue size will be constrained to 60 since axis is 300 pixels, one 2x2 pixel per 5 x pixels.
+// y value of a data value of 1 would be 77+((pos-1)*71) 
+// draw a line (width 2) from the previous data point to the current data point
+void drawGraphPoints(DataQueue q, uint8_t pos) {
+    if (q.size() == 0) return;
+
+    // --- 1. CONFIGURATION ---
+    // Base Y is the bottom line of the graph. 
+    // From skeleton: 77 + ((pos-1)*71).
+    int baseY = 77 + ((pos - 1) * 71);
+    
+    // Max height for the graph plot (keeping inside the box)
+    const int GRAPH_HEIGHT = 48; 
+    
+    // Determine scaling based on position (1=CO2, 2&3=VOC/NOx)
+    int maxVal = (pos == 1) ? 2000 : 500;
+    
+    // Calculate starting X pixel so the newest data point always hits x=402
+    // Space between points is 5px.
+    int startX = 402 - (5 * (q.size() - 1));
+
+    int16_t prevX = -1;
+    int16_t prevY = -1;
+
+    // --- 2. DRAWING LOOP ---
+    for (int i = 0; i < q.size(); i++) {
+        // Get value (0 is oldest)
+        int rawVal = q.get(i);
+        
+        // Map Value to Y Coordinate
+        // 1. Constrain value to limits
+        int constrainedVal = constrain(rawVal, 0, maxVal);
+        // 2. Map to pixel height (0 to 48)
+        int pixelHeight = map(constrainedVal, 0, maxVal, 0, GRAPH_HEIGHT);
+        // 3. Invert because screen Y=0 is top, Y=240 is bottom
+        int currentY = baseY - pixelHeight;
+        
+        // Calculate X Coordinate
+        int currentX = startX + (i * 5);
+
+        // Draw Line from previous point (if not the first point)
+        if (prevX != -1) {
+            // Draw main line
+            display.drawLine(prevX, prevY, currentX, currentY, EPD_BLACK);
+            // Draw adjacent line to simulate Width = 2
+            // We offset Y by 1 for a thicker look
+            // display.drawLine(prevX, prevY + 1, currentX, currentY + 1, EPD_BLACK);
+        }
+
+        // Draw data point
+        display.fillRect(currentX, currentY, 1, 1, EPD_BLACK);
+
+        // Save current as previous for next loop
+        prevX = currentX;
+        prevY = currentY;
+    }
+}
+
 void screenPrint(String message){
     Serial.printf("[SCREEN] %s", message);
     display.clearDisplay();
@@ -58,6 +140,7 @@ void screenPrint(String message){
     display.display();
 }
 
+// TODO: display AP is sometimes called after an error. this error message should be able to be displayed below the AP info 
 void displayAP(uint8_t* mac) {
     display.clearDisplay();
     display.clearBuffer();
@@ -124,6 +207,59 @@ void drawPage1() {
     display.display();
 }
 
-void drawPage2(){
+DataQueue vocQueue; 
+DataQueue co2Queue;
+DataQueue noxQueue;
 
+// TODO: Remove
+void seedTestQueue(DataQueue &q, int startVal, int maxChange) {
+    int currentVal = startVal;
+    
+    // Fill the max buffer size (60)
+    for(int i = 0; i < 60; i++) {
+        // Randomly wander up or down by a small amount
+        // random(min, max) is inclusive of min but exclusive of max
+        int drift = random(-maxChange, maxChange + 1); 
+        
+        currentVal += drift;
+
+        // Clamp values so they don't go off the chart (VOC max is 500)
+        if(currentVal < 0) currentVal = 0;
+        if(currentVal > 500) currentVal = 500;
+
+        q.push(currentVal);
+    }
 }
+
+void drawPage2(){
+    randomSeed(analogRead(0)); 
+    seedTestQueue(vocQueue, 120, 20); 
+    seedTestQueue(co2Queue, 800, 50);
+    seedTestQueue(noxQueue, 1, 5);
+
+    display.clearDisplay();
+    display.clearBuffer();
+    display.setTextColor(EPD_BLACK);
+    // line across top seperating graphs from time/date
+    display.drawRect(0,20,416,2,EPD_BLACK); 
+    display.setFont(&Rubik_Italic9pt7b);
+    display.setCursor(4,16);
+    display.printf("%02d/%02d  %d:%02d %s", getRTCcal().month, getRTCcal().date, getRTCTime().hours, getRTCTime().minutes, getRTCTime().am_pm ? "PM" : "AM");
+    String tempUnit = json["unit_c"].as<int>() == 1 ? "C" : "F";
+    String tempHumStr = String((int)round(getTemp())) + tempUnit + "  " + (int)round(getHumidity()) + "%";
+    int16_t x1, y1; uint16_t w, h;
+    display.getTextBounds(tempHumStr, 0, 0, &x1, &y1, &w, &h);
+    // want the rightmost pixel to be at 412 (416-4)
+    display.setCursor(413-w, 16);
+    display.printf("%d%s  %d%%", (int)round(getTemp()), tempUnit, (int)round(getHumidity()));
+    // three empty graphs
+    drawGraphSkeleton("CO2", 632, 1); 
+    drawGraphSkeleton("VOC", 78, 2); 
+    drawGraphSkeleton("NOx", 1, 3); 
+    // populate the graphs with points
+    drawGraphPoints(co2Queue, 1); 
+    drawGraphPoints(vocQueue, 2); 
+    drawGraphPoints(noxQueue, 3);
+    display.display();
+}
+

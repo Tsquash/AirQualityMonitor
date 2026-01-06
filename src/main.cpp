@@ -30,13 +30,9 @@ void setup()
     Serial.println("[BTN1] Held at boot");
     fallbackAP();
   }
-  if (checkBootHold(BTN2, 1000UL))
-  {
-    Serial.println("[BTN2] Held at boot");
-    //TODO: add when B&W screenPrint("Entering Matter Commissioning Mode");
-  }
  
   if (!initializeSensors()) Serial.println("[SENSE] Initialization failed!");
+  // TODO: Screen print this error
   // no buttons were held, do I know the time, or do I need to set it because config was changed?
   
   if(rtcLostPower() || (!json["just_restarted"].isNull() && json["just_restarted"].as<int>() == 1)){ 
@@ -50,11 +46,13 @@ void setup()
         json["ssid"].as<String>() == "" || json["pass"].as<String>() == ""){
       // no ->  start AP mode for config 
       Serial.println("[RTC] No stored credentials to set RTC after power loss");
+      // Screen print that there are no wifi credentials, delay for a few seconds, fallback ap
       fallbackAP();
     }
     else{
       // yes -> connect to wifi, get time from NTP to set RTC, then normal operation
-      if(!wifiManager.connectToWiFi()){
+      if(!wifiManager.connectToWiFi()){ 
+        // TOOD: screen print could not connect to wifi, try again or reset ssid/pass in config. 
         fallbackAP();
       }
       // wifi has connected, get time from NTP
@@ -73,9 +71,13 @@ void setup()
     }
   }
   // RTC either hasnt lost power or has now been set, continue normal operation
-
+  // perform initial sensor reads
   updateDHT();
-  drawPage1();
+  // perform initial screen drawing
+  drawPage2();
+  // do nothing until there is a interrupt by the RTC
+  // isr for the T-10 seconds should start heating the SGP41 (look at example), at the minute it should read all sensors and update time
+  // could potentially do partial update for the mintues and such, and after x partials do a full? or do a full at the hour or something? test
 
   /* SGP41 TYPICAL SEQUENCE
   if (startSGP41Conditioning()) {
@@ -99,10 +101,7 @@ void setup()
 
 void loop()
 {
-  updateDHT();
-  Serial.println(getTemp()); 
-  Serial.printf("%d:%d\n", getRTCTime().hours, getRTCTime().minutes);
-  delay(2000);
+
 }
 
 void fallbackAP()
