@@ -17,7 +17,11 @@ bool readSGP41Raw(uint16_t &voc, uint16_t &nox); // Call this after 10s of condi
 bool turnOffSGP41(); // Call this after you have read the raw values
 
 // RTC Functions
+extern volatile bool interrupt_occured;
+extern volatile bool minute_interrupt;
+
 bool setRTCAlarms();
+void clearRTCInt();
 bool rtcLostPower(); // compare epoch to some arbitrary low (right now?) 
 bool setRTCTime(uint32_t hour, uint32_t minute, uint32_t second);  // should set calendar and time from ntp 
 bool setRTCdate(uint32_t weekday, uint32_t day, uint32_t month, uint32_t year);

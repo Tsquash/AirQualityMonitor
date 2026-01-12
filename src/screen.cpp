@@ -2,7 +2,6 @@
 #include <SPI.h>
 #include "screen.h"
 #include "sense.h" 
-#include "battery.h"
 #include "utils.h"
 
 #include <Adafruit_GFX.h>
@@ -33,8 +32,9 @@ String DoWs[] = {
 // use XIAO C6 SPI bus
 SPIClass epd_spi(FSPI);
 // 3.7" Tricolor Display with 416x240 pixels and UC8253 chipset
-ThinkInk_370_Tricolor_BABMFGNR display(EPD_DC, EPD_RESET, EPD_CS, SRAM_CS, EPD_BUSY, EPD_SPI);
-
+// ThinkInk_370_Tricolor_BABMFGNR display(EPD_DC, EPD_RESET, EPD_CS, SRAM_CS, EPD_BUSY, EPD_SPI);
+// 3.7" Mono display
+ThinkInk_370_Mono_BAAMFGN display(EPD_DC, EPD_RESET, EPD_CS, SRAM_CS, EPD_BUSY, EPD_SPI);
 
 String padStart(String str) {
   while (str.length() < 2) {
@@ -130,14 +130,17 @@ void drawGraphPoints(DataQueue q, uint8_t pos) {
 }
 
 void screenPrint(String message){
-    Serial.printf("[SCREEN] %s", message);
+    // TODO: Test this functionality
+    /*
+    Serial.printf("[SCREEN] test");
     display.clearDisplay();
     display.clearBuffer();
     display.setFont(&Rubik_Regular12pt7b);
     display.setTextColor(EPD_BLACK);
-    display.setCursor(0, 0);
+    display.setCursor(50, 50);
     display.print(message);
     display.display();
+    */
 }
 
 // TODO: display AP is sometimes called after an error. this error message should be able to be displayed below the AP info 

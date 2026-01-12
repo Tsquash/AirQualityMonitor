@@ -1,7 +1,6 @@
 #include <Arduino.h>
 #include "sense.h" // rtc and sensors (I2C handling)
 #include "screen.h" // eink
-#include "battery.h" // battery monitoring
 #include "buttons.h" // button handling
 #include "utils.h" // file management helpers
 #include "wifi_manager.h" // connecting to wifi 
@@ -32,7 +31,7 @@ void setup()
   }
  
   if (!initializeSensors()) Serial.println("[SENSE] Initialization failed!");
-  // TODO: Screen print this error
+  // TODO: screen print parameters do not work screenPrint("Error: Sensor initialization failed. Check wiring or restart the device");
   // no buttons were held, do I know the time, or do I need to set it because config was changed?
   
   if(rtcLostPower() || (!json["just_restarted"].isNull() && json["just_restarted"].as<int>() == 1)){ 
@@ -72,9 +71,12 @@ void setup()
   }
   // RTC either hasnt lost power or has now been set, continue normal operation
   // perform initial sensor reads
+  setRTCAlarms();
   updateDHT();
   // perform initial screen drawing
-  drawPage2();
+  //drawPage1();
+  //delay(10000);
+  //drawPage2();
   // do nothing until there is a interrupt by the RTC
   // isr for the T-10 seconds should start heating the SGP41 (look at example), at the minute it should read all sensors and update time
   // could potentially do partial update for the mintues and such, and after x partials do a full? or do a full at the hour or something? test
@@ -101,7 +103,22 @@ void setup()
 
 void loop()
 {
-
+  // do some matter stuff
+  // do some ntp timekeeping
+  // check if a minute has passed
+  if(interrupt_occured ){
+    interrupt_occured = false;
+    clearRTCInt();
+    if(!minute_interrupt)
+      Serial.print("[RTC] Minute change.\n");
+    else 
+      Serial.print("[RTC] T-10 Seconds.\n");
+    // redraw each minute
+    //drawPage1();
+    // Clear Interrupt Status
+    
+  }
+  delay(50);
 }
 
 void fallbackAP()
@@ -109,7 +126,7 @@ void fallbackAP()
   Serial.println("[MAIN] Starting fallback AP...");
   wifiManager.startAP(); // start the AP, since you held down btn1
   webPortal.begin(); // start the captive portal
-  // TODO: add back displayAP(wifiManager.mac);
+  displayAP(wifiManager.mac);
   handleCaptivePortal(); // infinite loop that resets ESP once config saved
 }
 
