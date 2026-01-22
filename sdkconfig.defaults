@@ -1,0 +1,13 @@
+# FreeRTOS tick rate required by Arduino component
+CONFIG_FREERTOS_HZ=1000
+
+# Disable ESP Insights (Fixes the .crt.S error)
+CONFIG_ESP_INSIGHTS_ENABLED=n
+CONFIG_ESP_INSIGHTS_CLI_ENABLE=n
+
+# Disable Rainmaker (Reduces bloat)
+CONFIG_ESP_RAINMAKER_ENABLE=n
+
+# Disable other heavy optional features pulled by Arduino
+CONFIG_ESP_DIAGNOSTICS_ENABLED=n
+CONFIG_ESP_INSIGHTS_TRANSPORT=n

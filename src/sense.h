@@ -1,7 +1,7 @@
 #ifndef SENSE_H
 #define SENSE_H 
 
-#include "max31328.h"
+#include "../lib/Max31328RTC/src/max31328.h"
 
 bool initializeSensors();
 

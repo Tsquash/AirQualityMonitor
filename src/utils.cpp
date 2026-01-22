@@ -1,7 +1,7 @@
 #include "utils.h"
 
 // Global configuration document
-JsonDocument json;
+DynamicJsonDocument json(2048);
 
 String macToStr(const uint8_t* mac) {
   String result;

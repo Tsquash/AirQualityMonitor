@@ -6,7 +6,7 @@
 #include <LittleFS.h>
 
 // Global configuration document
-extern JsonDocument json;
+extern DynamicJsonDocument json;
 
 // MAC address utilities
 String macToStr(const uint8_t* mac);

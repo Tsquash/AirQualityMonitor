@@ -1,6 +1,7 @@
-#include <Arduino.h>
+#include "Arduino.h"
 #include "sense.h" // rtc and sensors (I2C handling)
-#include "screen.h" // eink
+// TODO: remove comment 
+// #include "screen.h" // eink
 #include "buttons.h" // button handling
 #include "utils.h" // file management helpers
 #include "wifi_manager.h" // connecting to wifi 
@@ -22,7 +23,8 @@ void setup()
   readConfig();
 
   setupButtons();
-  initializeScreen();
+  // TODO: remove comment 
+  // initializeScreen();
 
   if (checkBootHold(BTN1, 1000UL))
   {
@@ -126,7 +128,8 @@ void fallbackAP()
   Serial.println("[MAIN] Starting fallback AP...");
   wifiManager.startAP(); // start the AP, since you held down btn1
   webPortal.begin(); // start the captive portal
-  displayAP(wifiManager.mac);
+  // TODO: remove comment 
+  // displayAP(wifiManager.mac);
   handleCaptivePortal(); // infinite loop that resets ESP once config saved
 }
 
@@ -145,4 +148,13 @@ void handleCaptivePortal()
     }
     delay(50);
   }
+}
+
+extern "C" void app_main() {
+    initArduino();
+    setup();
+    while (true) {
+        loop();
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
 }

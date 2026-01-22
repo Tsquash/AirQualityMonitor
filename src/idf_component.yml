@@ -1,0 +1,4 @@
+version: "3.3.5"
+description: Arduino framework for ESP-IDF
+dependencies:
+  espressif/arduino-esp32: "^3.3.5"
