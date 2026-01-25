@@ -1,6 +1,6 @@
 #include <Arduino.h>
 #include "sense.h"
-#include "screen.h"
+// #include "screen.h"
 #include "utils.h" 
 
 #include <Wire.h> 
@@ -9,6 +9,8 @@
 
 // Set I2C bus to use: Wire, Wire1, etc.
 #define WIRE Wire
+
+#define intPin 2
 
 DHT20 DHT(&WIRE);
 SensirionI2CSgp41 SGP41;
@@ -141,12 +143,78 @@ bool turnOffSGP41() {
     return true;
 }
 
+volatile bool minute_interrupt = false;
+volatile bool interrupt_occured = false;
+
+void rtc_interrupt_handler(){
+  interrupt_occured = true;
+}
+
 // RTC Functions
 bool setRTCAlarms(){
+  pinMode(intPin, INPUT);
+
+  // Attach interrupt on INT pin of MAX31328.
+  attachInterrupt(digitalPinToInterrupt(intPin), rtc_interrupt_handler, FALLING);
+
+  // Configure alarm to fire once per second
+  max31328_alrm_t alarm1 = {0};
+  alarm1.am1 = 0;
+  alarm1.am2 = 1;
+  alarm1.am3 = 1;
+  alarm1.am4 = 1;
+  alarm1.seconds = 50;
+  alarm1.minutes = 0; 
+  alarm1.hours   = 0; 
+  alarm1.day     = 1;
+  alarm1.date    = 1;
+  alarm1.dy_dt = 0;
+
+  max31328_alrm_t alarm2 = {0};
+  alarm2.am1 = 0;
+  alarm2.am2 = 1;
+  alarm2.am3 = 1;
+  alarm2.am4 = 1;
+  alarm2.day     = 1;
+  alarm2.date    = 1;
+  
+  max31328_cntl_stat_t regs;
+  if(RTC.get_cntl_stat_reg(&regs)){
+    Serial.println("[RTC] ERROR: Cannot read control register.");
+  } 
+
+  regs.control |= INTCN | A1IE | A2IE;
+  regs.status &= ~(A1F | A2F);
+
+  if(RTC.set_cntl_stat_reg(regs)){
+    Serial.println("[RTC] ERROR: Cannot set control register.");
+  }
+  // Set Alarm 1
+  if(RTC.set_alarm(alarm1, true)){
+    Serial.println("[RTC] ERROR: Cannot set alarm 1.");
+    return false;
+  }
+  // Set Alarm 2
+  if(RTC.set_alarm(alarm2, false)){
+    Serial.println("[RTC] ERROR: Cannot set alarm 2.");
+    return false;
+  }
   return true;
 }
+
+void clearRTCInt(){
+  max31328_cntl_stat_t regs;
+  RTC.get_cntl_stat_reg(&regs);
+  // Alarm 1 fired
+  if (regs.status & A1F) minute_interrupt = true;
+  // else Alarm 2 fired
+  else minute_interrupt = false;
+  regs.status = 0;
+  RTC.set_cntl_stat_reg(regs);
+} 
+
 bool rtcLostPower(){
-  max31328_calendar_t rtcDate = getRTCdate();
+  max31328_calendar_t rtcDate = getRTCcal();
   return rtcDate.year < 26;
 } 
 bool setRTCTime(uint32_t hour, uint32_t minute, uint32_t second){
@@ -187,8 +255,8 @@ max31328_time_t getRTCTime(){
   RTC.get_time(&time);
   return time;
 }
-max31328_calendar_t getRTCdate(){
-  max31328_calendar_t date;
-  RTC.get_calendar(&date);
-  return date;
+max31328_calendar_t getRTCcal(){
+  max31328_calendar_t cal;
+  RTC.get_calendar(&cal);
+  return cal;
 }

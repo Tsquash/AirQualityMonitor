@@ -1,18 +1,9 @@
 #include <Arduino.h>
 #include "buttons.h"
 
-InterruptDrivenButton btn1(BTN1);
-InterruptDrivenButton btn2(BTN2);
-
-DEFINE_IDB_ISR(btn1) 
-DEFINE_IDB_ISR(btn2)
-
 void setupButtons(){
     pinMode(BTN1, INPUT_PULLUP);
     pinMode(BTN2, INPUT_PULLUP);
-
-    btn1.setup(IDB_ISR(btn1)); 
-    btn2.setup(IDB_ISR(btn2)); 
 }
 
 // Standalone replacement - No Library needed

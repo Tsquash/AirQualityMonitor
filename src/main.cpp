@@ -1,7 +1,6 @@
 #include <Arduino.h>
 #include "sense.h" // rtc and sensors (I2C handling)
 #include "screen.h" // eink
-#include "battery.h" // battery monitoring
 #include "buttons.h" // button handling
 #include "utils.h" // file management helpers
 #include "wifi_manager.h" // connecting to wifi 
@@ -18,13 +17,15 @@ void handleCaptivePortal();
 void setup()
 {
   Serial.begin(115200);
-
+  delay(5000);
   LittleFS.begin(true);
+  Serial.println("0");
   readConfig();
-
-  setupButtons();
+  Serial.println("1");
+  // setupButtons();
   initializeScreen();
-
+  Serial.println("2");
+  /*
   if (checkBootHold(BTN1, 1000UL))
   {
     Serial.println("[BTN1] Held at boot");
@@ -35,8 +36,9 @@ void setup()
     Serial.println("[BTN2] Held at boot");
     //TODO: add when B&W screenPrint("Entering Matter Commissioning Mode");
   }
- 
+  */
   if (!initializeSensors()) Serial.println("[SENSE] Initialization failed!");
+  Serial.println("3");
   // no buttons were held, do I know the time, or do I need to set it because config was changed?
   
   if(rtcLostPower() || (!json["just_restarted"].isNull() && json["just_restarted"].as<int>() == 1)){ 
@@ -69,14 +71,15 @@ void setup()
       uint32_t month = timeManager.getMonth();
       uint32_t year = timeManager.getYear();
       setRTCTime(hour, minute, second);
-      setRTCdate(day, weekday, month, year);
+      setRTCdate(weekday, day, month, year);
     }
   }
   // RTC either hasnt lost power or has now been set, continue normal operation
 
 
   updateDHT();
-  // TODO: add back screenTest();
+  Serial.println("Initial drawing");
+  drawPage1();
 
   /* SGP41 TYPICAL SEQUENCE
   if (startSGP41Conditioning()) {
@@ -100,10 +103,15 @@ void setup()
 
 void loop()
 {
+  /*
   updateDHT();
   Serial.println(getTemp()); 
   Serial.printf("%d:%d\n", getRTCTime().hours, getRTCTime().minutes);
-  delay(2000);
+  delay(60000);
+  drawPage1();
+  delay(60000);
+  drawPage2();
+  */
 }
 
 void fallbackAP()
@@ -111,7 +119,7 @@ void fallbackAP()
   Serial.println("[MAIN] Starting fallback AP...");
   wifiManager.startAP(); // start the AP, since you held down btn1
   webPortal.begin(); // start the captive portal
-  // TODO: add back displayAP(wifiManager.mac);
+  displayAP(wifiManager.mac);
   handleCaptivePortal(); // infinite loop that resets ESP once config saved
 }
 
