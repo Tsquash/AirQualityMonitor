@@ -17,20 +17,16 @@ void handleCaptivePortal();
 void setup()
 {
   Serial.begin(115200);
-  delay(5000);
   LittleFS.begin(true);
-  Serial.println("0");
   readConfig();
-  Serial.println("1");
-  // setupButtons();
+  setupButtons();
   initializeScreen();
-  Serial.println("2");
-  /*
-  if (checkBootHold(BTN1, 1000UL))
+  if (checkBootHold(BTN2, 1000UL))
   {
-    Serial.println("[BTN1] Held at boot");
+    Serial.println("[BTN2] Held at boot");
     fallbackAP();
   }
+  /*
   if (checkBootHold(BTN2, 1000UL))
   {
     Serial.println("[BTN2] Held at boot");
@@ -38,7 +34,6 @@ void setup()
   }
   */
   if (!initializeSensors()) Serial.println("[SENSE] Initialization failed!");
-  Serial.println("3");
   // no buttons were held, do I know the time, or do I need to set it because config was changed?
   
   if(rtcLostPower() || (!json["just_restarted"].isNull() && json["just_restarted"].as<int>() == 1)){ 
@@ -74,11 +69,11 @@ void setup()
       setRTCdate(weekday, day, month, year);
     }
   }
+
   // RTC either hasnt lost power or has now been set, continue normal operation
-
-
   updateDHT();
-  Serial.println("Initial drawing");
+  updateCO2();
+  Serial.println("[SCREEN] Initial drawing");
   drawPage1();
 
   /* SGP41 TYPICAL SEQUENCE
@@ -103,14 +98,18 @@ void setup()
 
 void loop()
 {
+  if (pageChangeRequested) {
+    Serial.println("Handling page change");
+    pageChangeRequested = false;
+    changePage();
+  }
   /*
-  updateDHT();
-  Serial.println(getTemp()); 
-  Serial.printf("%d:%d\n", getRTCTime().hours, getRTCTime().minutes);
-  delay(60000);
+  Serial.println("[LOOP]");
+  if(!updateDHT()){Serial.println("[DHT] Error updating DHT");}
+  if(!updateCO2()){Serial.println("[SCD41] Error updating SCD41");}
+  Serial.printf("[RTC] Time: %d:%d\n", getRTCTime().hours, getRTCTime().minutes);
   drawPage1();
-  delay(60000);
-  drawPage2();
+  delay(30000);
   */
 }
 

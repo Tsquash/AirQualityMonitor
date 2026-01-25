@@ -4,6 +4,7 @@
 void initializeScreen();
 void screenPrint(String message);
 void displayAP(uint8_t* mac);
+void changePage();
 void drawPage1();
 void drawPage2();
 /*

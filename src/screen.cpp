@@ -29,6 +29,9 @@ String DoWs[] = {
     "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"
 };
 
+// flag so that change page knows the current page
+bool page1 = false;
+
 // use XIAO C6 SPI bus
 SPIClass epd_spi(FSPI);
 // 3.7" Tricolor Display with 416x240 pixels and UC8253 chipset
@@ -49,7 +52,7 @@ void initializeScreen(){
     display.begin(THINKINK_MONO);
 }
 
-// example: drawGraphSkeleton("CO2", getC02(), 1); 
+// example: drawGraphSkeleton("CO2", getCO2(), 1); 
 // where 1 tells it to occupy the first graph space
 void drawGraphSkeleton(String title, int value, uint8_t pos){
     // vert line for UI
@@ -68,7 +71,7 @@ void drawGraphSkeleton(String title, int value, uint8_t pos){
 }
 
 // position is just which one of the three graphs on the board you draw the data points onto. can be 1-3, each 71 y values apart. 
-// allow C02 values (pos 1) to be 1-2000, anything above is just 2000. Need to be mapped to Y values 1-50
+// allow CO2 values (pos 1) to be 1-2000, anything above is just 2000. Need to be mapped to Y values 1-50
 // allow VOC, NOX values (pos 2&3) to be 1-500. Need to be mapped to Y values 1-50
 // get size of queue that was passed in. the first value you deque will be at 402 minus 5*size? 
 // deque and draw pixel until the queue is empty and you are drawing your last pixel at x=402. 
@@ -131,6 +134,7 @@ void drawGraphPoints(DataQueue q, uint8_t pos) {
 }
 
 void screenPrint(String message){
+    page1 = false;
     // TODO: Test this functionality
     /*
     Serial.printf("[SCREEN] test");
@@ -146,11 +150,12 @@ void screenPrint(String message){
 
 // TODO: display AP is sometimes called after an error. this error message should be able to be displayed below the AP info 
 void displayAP(uint8_t* mac) {
+    page1 = false;
     display.clearDisplay();
     display.clearBuffer();
     display.setFont(&Rubik_Medium12pt7b);
     display.setTextColor(EPD_BLACK);
-    display.setCursor(0, 10);
+    display.setCursor(0, 20);
     display.printf("Config Mode:\n");
     display.setFont(&Rubik_Regular12pt7b);
     display.printf("Connect to WiFi SSID:\n");
@@ -160,7 +165,14 @@ void displayAP(uint8_t* mac) {
     display.display();
 }
 
+void changePage(){
+    Serial.printf("changePage called, page1: %d\n", page1);
+    if(page1) drawPage2();
+    else drawPage1();
+}
+
 void drawPage1() {
+    page1 = true;
     display.clearDisplay();
     display.clearBuffer();
     
@@ -183,10 +195,10 @@ void drawPage1() {
     display.printf("%d:%02d", getRTCTime().hours, getRTCTime().minutes);
     // Tem, Humidity, CO2
     display.setFont(&Rubik_Regular12pt7b);
-    String tempStr = String((int)round(getTemp())) + "\x7F  " + (int)round(getHumidity()) + "%  342 ppm";
+    String tempStr = String((int)round(getTemp())) + "\x7F  " + (int)round(getHumidity()) + "%  " + getCO2() + " ppm";
     display.getTextBounds(tempStr, 0, 0, &x1, &y1, &w, &h);
     display.setCursor(((416 - w) / 2), 161); // the minus 4 accounts for the width of the degree symbol
-    display.printf("%d\x7F  %d%%  %d ppm\n", (int)round(getTemp()), (int)round(getHumidity()), 342); // TODO: C02 Hardcoded, document degree is x7F
+    display.printf("%d\x7F  %d%%  %d ppm\n", (int)round(getTemp()), (int)round(getHumidity()), getCO2()); // TODO: CO2 Hardcoded, document degree is x7F
     // VOC Scale
     display.drawRoundRect(111, 175, 194, 16, 1, EPD_BLACK);
     // TODO: greyscale dither scale
@@ -236,6 +248,7 @@ void seedTestQueue(DataQueue &q, int startVal, int maxChange) {
 }
 
 void drawPage2(){
+    page1 = false;
     randomSeed(analogRead(0)); 
     seedTestQueue(vocQueue, 120, 20); 
     seedTestQueue(co2Queue, 800, 50);
