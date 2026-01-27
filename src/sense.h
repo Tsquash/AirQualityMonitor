@@ -3,21 +3,34 @@
 
 #include "../lib/Max31328RTC/src/max31328.h"
 
+#define WARN_CO2 2000
+#define WARN_VOC 120
+#define WARN_NOX 2
+
 bool initializeSensors();
+void initGasAlgorithms(); // Setup gas algorithm parameters
+
+extern int TEMP;
+extern int RH;
+extern int CO2;
+extern int32_t VOC;
+extern int32_t NOx;
 
 // DHT Functions
 bool updateDHT();
 double getTemp();
 double getHumidity();
 
-// SGP41 Functions
 void printSensirionError(uint16_t error, const char* functionName);
-bool startSGP41Conditioning(); // Call this immediately on wake from deep sleep (@ T-10s)
-bool readSGP41Raw(uint16_t &voc, uint16_t &nox); // Call this after 10s of conditioning during light sleep
-bool turnOffSGP41(); // Call this after you have read the raw values
+// SGP41 Functions
+void initGasAlgorithms();
+void processGasSensors();
+int32_t getVOCIndex();
+int32_t getNOxIndex();
+void printSGP();
 
 // RTC Functions
-extern volatile bool interrupt_occured;
+extern volatile bool rtc_interrupt_occured;
 extern volatile bool minute_interrupt;
 
 bool setRTCAlarms();

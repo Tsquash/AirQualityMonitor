@@ -6,6 +6,8 @@
 #include "DHT20.h"
 #include <SensirionI2CSgp41.h>
 #include <SensirionI2cScd4x.h>
+#include <VOCGasIndexAlgorithm.h>
+#include <NOxGasIndexAlgorithm.h>
 
 #define WIRE Wire
 
@@ -16,9 +18,24 @@ SensirionI2CSgp41 SGP41;
 SensirionI2cScd4x SCD41;
 Max31328 RTC(&WIRE);
 
+// Gas Algorithms
+VOCGasIndexAlgorithm voc_algorithm;
+NOxGasIndexAlgorithm nox_algorithm;
+
+// State Variables
+int32_t currentVocIndex = 0;
+int32_t currentNoxIndex = 0;
+unsigned long lastGasTick = 0;
+uint16_t conditioning_countdown = 10; // Seconds of NOx conditioning needed on boot
+
 float tempC = -40.0;
 float humidity = -1.0;
-int   CO2 = -1;
+int TEMP = -40;
+int RH = 0;
+int CO2 = 0;
+int32_t VOC = 0;
+int32_t NOx = 0;
+
 static int16_t error;
 
 /*
@@ -50,6 +67,16 @@ bool initializeSensors()
   return success;
 }
 
+void initGasAlgorithms() {
+    int32_t index_offset, learning_time_offset_hours, learning_time_gain_hours, gating_max_duration_minutes, std_initial, gain_factor;
+  
+    // Initialize VOC Params
+    voc_algorithm.get_tuning_parameters(index_offset, learning_time_offset_hours, learning_time_gain_hours, gating_max_duration_minutes, std_initial, gain_factor);
+    
+    // Initialize NOx Params
+    nox_algorithm.get_tuning_parameters(index_offset, learning_time_offset_hours, learning_time_gain_hours, gating_max_duration_minutes, std_initial, gain_factor);
+}
+
 // DHT Functions
 bool updateDHT()
 {
@@ -58,8 +85,8 @@ bool updateDHT()
   switch (status)
   {
   case DHT20_OK:
-    tempC = DHT.getTemperature();
-    humidity = DHT.getHumidity();
+    TEMP = (json["unit_c"].as<int>() == 1) ? (int)round(static_cast<double>(DHT.getTemperature())) : (int)round((static_cast<double>(DHT.getTemperature()) * 1.8) + 32.0);
+    RH = (int)round(static_cast<double>(DHT.getHumidity()));
     return true;
   case DHT20_ERROR_CHECKSUM:
     Serial.print("[DHT] Checksum error");
@@ -113,70 +140,66 @@ void printSensirionError(uint16_t error, const char *functionName)
   Serial.println(errorMessage);
 }
 
-bool startSGP41Conditioning()
-{
-  uint16_t srawVoc = 0; // dummy variable
+void processGasSensors() {
+    // Non-blocking 1Hz Timer
+    if (millis() - lastGasTick >= 1000) {
+        lastGasTick = millis();
 
-  // default values for the conditioning phase are okay
-  uint16_t defaultRh = 0x8000;
-  uint16_t defaultT = 0x6666;
+        uint16_t srawVoc = 0;
+        uint16_t srawNox = 0;
+        uint16_t compRh = 0x8000;
+        uint16_t compT = 0x6666;
 
-  // Send the command
-  error = SGP41.executeConditioning(defaultRh, defaultT, srawVoc);
+        // 1. Get Compensation Data (Use cached DHT values)
+        // Note: We don't need to read DHT every second, just use the latest available
+        if (humidity >= 0 && humidity <= 100 && tempC >= -40 && tempC <= 80) {
+            compT = static_cast<uint16_t>((tempC + 45) * 65535 / 175);
+            compRh = static_cast<uint16_t>(humidity * 65535 / 100);
+        }
 
-  if (error)
-  {
-    printSensirionError(error, "executeConditioning");
-    return false;
-  }
-  return true;
+        // 2. Read Sensor
+        if (conditioning_countdown > 0) {
+            // Case A: Still warming up (First 10s)
+            // Execute Conditioning (Returns VOC raw, but NOx is not ready)
+            error = SGP41.executeConditioning(compRh, compT, srawVoc);
+            if (error) {
+                printSensirionError(error, "SGP41 executeConditioning");
+            } else {
+                // We CAN feed VOC during conditioning
+                currentVocIndex = voc_algorithm.process(srawVoc);
+                // We CANNOT feed NOx yet (value is 0/invalid)
+                currentNoxIndex = 0; 
+                conditioning_countdown--;
+                // Serial.println("[SGP41] Conditioning...");
+            }
+        } else {
+            // Case B: Normal Operation
+            error = SGP41.measureRawSignals(compRh, compT, srawVoc, srawNox);
+            if (error) {
+                printSensirionError(error, "SGP41 measureRawSignals");
+            } else {
+                // Feed both algorithms
+                currentVocIndex = voc_algorithm.process(srawVoc);
+                currentNoxIndex = nox_algorithm.process(srawNox);
+                // Serial.printf("[SGP41] VOC: %d, NOx: %d\n", currentVocIndex, currentNoxIndex);
+                NOx = currentNoxIndex;
+                VOC = currentVocIndex;
+            }
+        }
+    }
 }
 
-bool readSGP41Raw(uint16_t &voc, uint16_t &nox)
-{
-  uint16_t error;
-
-  // If DHT fails, default to standard values (50% RH, 25°C)
-  uint16_t compensationRh = 0x8000;
-  uint16_t compensationT = 0x6666;
-
-  // only use my cached DHT readings if they are valid,
-  // otherwise just use defaults
-  if (humidity >= 0 && humidity <= 100 && tempC >= -40 && tempC <= 80)
-  {
-    compensationT = static_cast<uint16_t>((tempC + 45) * 0xFFFF / 175);
-    compensationRh = static_cast<uint16_t>(humidity * 0xFFFF / 100);
-  }
-
-  // perform the measurement
-  error = SGP41.measureRawSignals(compensationRh, compensationT, voc, nox);
-
-  if (error)
-  {
-    printSensirionError(error, "measureRawSignals");
-    // Set values to 0 (or your preferred "invalid" flag) to be safe
-    voc = -1;
-    nox = -1;
-    return false;
-  }
-  return true;
-}
-
-bool turnOffSGP41()
-{
-  uint16_t error = SGP41.turnHeaterOff();
-
-  if (error)
-  {
-    printSensirionError(error, "turnHeaterOff");
-    return false;
-  }
-  return true;
+int32_t getVOCIndex() { return VOC; }
+int32_t getNOxIndex() { return NOx; }
+void printSGP() {
+  Serial.printf("[SGP41] VOC Index: %d\n", getVOCIndex());
+  Serial.printf("[SGP41] NOx Index: %d\n", getNOxIndex());
 }
 
 // SCD41 Functions
-int getCO2(){
-  return CO2; 
+int getCO2()
+{
+  return CO2;
 }
 
 bool updateCO2()
@@ -208,7 +231,7 @@ bool updateCO2()
   // Perform single shot measurement and read data.
   //
   error = SCD41.measureAndReadSingleShot(co2Concentration, temperature,
-                                          relativeHumidity);
+                                         relativeHumidity);
   if (error)
   {
     printSensirionError(error, "SCD41 measureAndReadSingleShot()");
@@ -223,11 +246,11 @@ bool updateCO2()
 }
 
 volatile bool minute_interrupt = false;
-volatile bool interrupt_occured = false;
+volatile bool rtc_interrupt_occured = false;
 
 void rtc_interrupt_handler()
 {
-  interrupt_occured = true;
+  rtc_interrupt_occured = true;
 }
 
 // RTC Functions
@@ -293,10 +316,10 @@ void clearRTCInt()
   RTC.get_cntl_stat_reg(&regs);
   // Alarm 1 fired
   if (regs.status & A1F)
-    minute_interrupt = true;
+    minute_interrupt = false;
   // else Alarm 2 fired
   else
-    minute_interrupt = false;
+    minute_interrupt = true;
   regs.status = 0;
   RTC.set_cntl_stat_reg(regs);
 }

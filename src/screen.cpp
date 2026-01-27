@@ -4,6 +4,7 @@
 #include "sense.h" 
 #include "utils.h"
 
+#include <GxEPD2_BW.h>
 #include <Adafruit_GFX.h>
 #include "Adafruit_ThinkInk.h"
 
@@ -15,6 +16,8 @@
 #include "myFont/RubikItalic9pt7b.h"
 #include "myBitmap/bitmaps.h"
 
+#define GxEPD2_DISPLAY_CLASS GxEPD2_BW
+#define GxEPD2_DRIVER_CLASS GxEPD2_370_GDEY037T03 // GDEY037T03 240x416, UC8253
 #define EPD_DC 21
 #define EPD_CS 17
 #define EPD_SCK   19
@@ -30,14 +33,31 @@ String DoWs[] = {
 };
 
 // flag so that change page knows the current page
-bool page1 = false;
+bool page1 = true;
+
+// flag for first refresh
+bool firstRefresh = true;
+
+// counter for periodic full refresh
+int refreshCounter = 0;
+
+// flag to force full refresh on page change
+bool forceFullRefresh = false;
 
 // use XIAO C6 SPI bus
 SPIClass epd_spi(FSPI);
 // 3.7" Tricolor Display with 416x240 pixels and UC8253 chipset
 // ThinkInk_370_Tricolor_BABMFGNR display(EPD_DC, EPD_RESET, EPD_CS, SRAM_CS, EPD_BUSY, EPD_SPI);
 // 3.7" Mono display
-ThinkInk_370_Mono_BAAMFGN display(EPD_DC, EPD_RESET, EPD_CS, SRAM_CS, EPD_BUSY, EPD_SPI);
+// ThinkInk_370_Mono_BAAMFGN display(EPD_DC, EPD_RESET, EPD_CS, SRAM_CS, EPD_BUSY, EPD_SPI);
+// GxEPD2 Definition: 
+#define MAX_HEIGHT(EPD) (EPD::HEIGHT <= MAX_DISPLAY_BUFFER_SIZE / (EPD::WIDTH / 8) ? EPD::HEIGHT : MAX_DISPLAY_BUFFER_SIZE / (EPD::WIDTH / 8))
+#define MAX_DISPLAY_BUFFER_SIZE 65536ul
+GxEPD2_DISPLAY_CLASS<GxEPD2_DRIVER_CLASS, MAX_HEIGHT(GxEPD2_DRIVER_CLASS)> display(GxEPD2_DRIVER_CLASS(/*CS=*/ EPD_CS, /*DC=*/ EPD_DC, /*RST=*/ EPD_RESET, /*BUSY=*/ EPD_BUSY));
+
+DataQueue vocQueue;
+DataQueue co2Queue;
+DataQueue noxQueue;
 
 String padStart(String str) {
   while (str.length() < 2) {
@@ -48,15 +68,28 @@ String padStart(String str) {
 
 void initializeScreen(){ 
     epd_spi.begin(EPD_SCK, EPD_MISO, EPD_MOSI, EPD_CS);
+    display.epd2.selectSPI(epd_spi, SPISettings(4000000, MSBFIRST, SPI_MODE0));
+    display.init(115200, true, 2, false);
+    display.setRotation(3);
+    display.writeScreenBuffer(GxEPD_WHITE); // set current buffer to white
     // display.begin(THINKINK_TRICOLOR);
-    display.begin(THINKINK_MONO);
+    // display.begin(THINKINK_MONO);
+
+}
+
+void initializeQueues() {
+    for(int i = 0; i < 60; i++) {
+        vocQueue.push(0);
+        co2Queue.push(0);
+        noxQueue.push(0);
+    }
 }
 
 // example: drawGraphSkeleton("CO2", getCO2(), 1); 
 // where 1 tells it to occupy the first graph space
 void drawGraphSkeleton(String title, int value, uint8_t pos){
     // vert line for UI
-    display.drawRect(10,36+((pos-1)*71),2,37,EPD_BLACK);
+    display.drawRect(10,36+((pos-1)*71),2,37,GxEPD_BLACK);
     // title next to vert line
     display.setFont(&Rubik_Regular9pt7b);
     display.setCursor(15,49+((pos-1)*71));
@@ -65,8 +98,8 @@ void drawGraphSkeleton(String title, int value, uint8_t pos){
     display.setCursor(15,70+((pos-1)*71));
     display.print(value);
     // draw the graph axis
-    display.drawRect(104,29+((pos-1)*71), 2, 48, EPD_BLACK); 
-    display.drawBitmap(104, 77+((pos-1)*71), xAxisBitmap, XAXIS_WIDTH, XAXIS_HEIGHT, EPD_BLACK);
+    display.drawRect(104,29+((pos-1)*71), 2, 48, GxEPD_BLACK); 
+    display.drawBitmap(104, 77+((pos-1)*71), xAxisBitmap, XAXIS_WIDTH, XAXIS_HEIGHT, GxEPD_BLACK);
     
 }
 
@@ -89,8 +122,29 @@ void drawGraphPoints(DataQueue q, uint8_t pos) {
     // Max height for the graph plot (keeping inside the box)
     const int GRAPH_HEIGHT = 48; 
     
-    // Determine scaling based on position (1=CO2, 2&3=VOC/NOx)
-    int maxVal = (pos == 1) ? 2000 : 500;
+    // Determine scaling: use default max for normal ranges, adjust if exceeded
+    int defaultMax = (pos == 1) ? 1500 : (pos == 2) ? 200 : 2;
+    int minVal = (pos == 1) ? 0 : 1;
+    int actualMax = INT_MIN;
+    for(int i = 0; i < q.size(); i++) {
+        int val = q.get(i);
+        if(val > actualMax) actualMax = val;
+    }
+    int maxVal = max(defaultMax, actualMax);
+    
+    // print min and max on y-axis
+    display.setFont(&Rubik_Regular6pt7b);
+    String maxStr = String(maxVal);
+    int16_t x1, y1; uint16_t w, h;
+    display.getTextBounds(maxStr, 0, 0, &x1, &y1, &w, &h);
+    int maxY = 39 + ((pos-1)*71);
+    display.setCursor(101 - w, maxY);
+    display.print(maxStr);
+    String minStr = String(minVal);
+    display.getTextBounds(minStr, 0, 0, &x1, &y1, &w, &h);
+    int minY = 78 + ((pos-1)*71);
+    display.setCursor(101 - w, minY);
+    display.print(minStr);
     
     // Calculate starting X pixel so the newest data point always hits x=402
     // Space between points is 5px.
@@ -106,9 +160,9 @@ void drawGraphPoints(DataQueue q, uint8_t pos) {
         
         // Map Value to Y Coordinate
         // 1. Constrain value to limits
-        int constrainedVal = constrain(rawVal, 0, maxVal);
+        int constrainedVal = constrain(rawVal, minVal, maxVal);
         // 2. Map to pixel height (0 to 48)
-        int pixelHeight = map(constrainedVal, 0, maxVal, 0, GRAPH_HEIGHT);
+        int pixelHeight = map(constrainedVal, minVal, maxVal, 0, GRAPH_HEIGHT);
         // 3. Invert because screen Y=0 is top, Y=240 is bottom
         int currentY = baseY - pixelHeight;
         
@@ -118,14 +172,14 @@ void drawGraphPoints(DataQueue q, uint8_t pos) {
         // Draw Line from previous point (if not the first point)
         if (prevX != -1) {
             // Draw main line
-            display.drawLine(prevX, prevY, currentX, currentY, EPD_BLACK);
+            display.drawLine(prevX, prevY, currentX, currentY, GxEPD_BLACK);
             // Draw adjacent line to simulate Width = 2
             // We offset Y by 1 for a thicker look
-            // display.drawLine(prevX, prevY + 1, currentX, currentY + 1, EPD_BLACK);
+            // display.drawLine(prevX, prevY + 1, currentX, currentY + 1, GxEPD_BLACK);
         }
 
         // Draw data point
-        display.fillRect(currentX, currentY, 1, 1, EPD_BLACK);
+        display.fillRect(currentX, currentY, 1, 1, GxEPD_BLACK);
 
         // Save current as previous for next loop
         prevX = currentX;
@@ -138,10 +192,10 @@ void screenPrint(String message){
     // TODO: Test this functionality
     /*
     Serial.printf("[SCREEN] test");
-    display.clearDisplay();
-    display.clearBuffer();
+    display.clearScreen(); 
+    display.fillScreen(GxEPD_WHITE);
     display.setFont(&Rubik_Regular12pt7b);
-    display.setTextColor(EPD_BLACK);
+    display.setTextColor(GxEPD_BLACK);
     display.setCursor(50, 50);
     display.print(message);
     display.display();
@@ -151,10 +205,10 @@ void screenPrint(String message){
 // TODO: display AP is sometimes called after an error. this error message should be able to be displayed below the AP info 
 void displayAP(uint8_t* mac) {
     page1 = false;
-    display.clearDisplay();
-    display.clearBuffer();
+    display.clearScreen();
+    display.fillScreen(GxEPD_WHITE);
     display.setFont(&Rubik_Medium12pt7b);
-    display.setTextColor(EPD_BLACK);
+    display.setTextColor(GxEPD_BLACK);
     display.setCursor(0, 20);
     display.printf("Config Mode:\n");
     display.setFont(&Rubik_Regular12pt7b);
@@ -167,19 +221,17 @@ void displayAP(uint8_t* mac) {
 
 void changePage(){
     Serial.printf("changePage called, page1: %d\n", page1);
+    forceFullRefresh = true; // signal page draw functions to force full refresh
     if(page1) drawPage2();
     else drawPage1();
+    forceFullRefresh = false; // reset after page change
 }
 
 void drawPage1() {
     page1 = true;
-    display.clearDisplay();
-    display.clearBuffer();
-    
-    // dimension test
-    // display.drawRect(0,0,416,240, EPD_BLACK);
-    
-    display.setTextColor(EPD_BLACK);
+    display.fillScreen(GxEPD_WHITE);
+    display.setFullWindow();
+    display.setTextColor(GxEPD_BLACK);
     int16_t x1, y1; uint16_t w, h;
     // Date
     display.setFont(&Rubik_Regular12pt7b);
@@ -195,87 +247,67 @@ void drawPage1() {
     display.printf("%d:%02d", getRTCTime().hours, getRTCTime().minutes);
     // Tem, Humidity, CO2
     display.setFont(&Rubik_Regular12pt7b);
-    String tempStr = String((int)round(getTemp())) + "\x7F  " + (int)round(getHumidity()) + "%  " + getCO2() + " ppm";
+    String tempStr = String(TEMP) + "\x7F  " + RH + "%  " + CO2 + " ppm";
     display.getTextBounds(tempStr, 0, 0, &x1, &y1, &w, &h);
     display.setCursor(((416 - w) / 2), 161); // the minus 4 accounts for the width of the degree symbol
-    display.printf("%d\x7F  %d%%  %d ppm\n", (int)round(getTemp()), (int)round(getHumidity()), getCO2()); // TODO: CO2 Hardcoded, document degree is x7F
+    display.printf("%d\x7F  %d%%  %d ppm\n", TEMP, RH, CO2); // TODO: document degree is x7F
     // VOC Scale
-    display.drawRoundRect(111, 175, 194, 16, 1, EPD_BLACK);
+    display.drawRoundRect(111, 175, 194, 16, 1, GxEPD_BLACK);
     // TODO: greyscale dither scale
-    int VOC = 75;
     int smaller_index = ((VOC - 1.0) / (500 - 1.0)) * (187 - 1) + 1; // map 1-500 to 1-187
-    display.drawBitmap(109+smaller_index, 190, lower_index_pointer, L_POINTER_WIDTH, L_POINTER_HEIGHT, EPD_BLACK);
-    display.drawBitmap(112+smaller_index, 187, upper_index_pointer, U_POINTER_WIDTH, U_POINTER_HEIGHT, EPD_BLACK);
+    display.drawBitmap(109+smaller_index, 190, lower_index_pointer, L_POINTER_WIDTH, L_POINTER_HEIGHT, GxEPD_BLACK);
+    display.drawBitmap(112+smaller_index, 187, upper_index_pointer, U_POINTER_WIDTH, U_POINTER_HEIGHT, GxEPD_BLACK);
     String quality = VOC<=100 ? "Good" : VOC<=250 ? "Fair" : "Poor";
     display.setCursor(121+smaller_index, 200);
     display.setFont(&Rubik_Regular6pt7b);
     display.printf("%d - %s", VOC, quality);
-    // TODO: update 'true' to be when any VOC, NOx, or CO2 is too high
-    if(true){
-        display.drawBitmap(85, 210, cautionBitmap, CAUITON_WIDTH, CAUTION_HEIGHT, EPD_BLACK);
+    if(NOx >= WARN_NOX || VOC >= WARN_VOC || CO2 >= WARN_CO2){
+        display.drawRect(0,0, 416, 240, GxEPD_BLACK);
+        display.drawRect(1,1, 414, 238, GxEPD_BLACK);
+        display.drawRect(2,2, 412, 236, GxEPD_BLACK);
+        display.drawRect(3 ,3, 410, 234, GxEPD_BLACK);
+        display.drawRect(4, 4, 408, 232, GxEPD_BLACK);
+        display.drawRect(5, 5, 406, 230, GxEPD_BLACK);
+        /* display.drawBitmap(85, 210, cautionBitmap, CAUITON_WIDTH, CAUTION_HEIGHT, GxEPD_BLACK);
         display.setCursor(116, 228);
         display.setFont(&Rubik_Regular9pt7b);
-        // TODO: update "VOC" to be whatever caused the notification
-        display.printf("High %s Levels Detected", "VOC");
-        // TODO: set flag that there is a notification (time based?)
+        display.printf("High %s Levels Detected", NOx >= WARN_NOX ? "NOx" : VOC >= WARN_VOC ? "VOC" : "CO2"); */
     }
-    
-    display.display();
-}
-
-DataQueue vocQueue; 
-DataQueue co2Queue;
-DataQueue noxQueue;
-
-// TODO: Remove
-void seedTestQueue(DataQueue &q, int startVal, int maxChange) {
-    int currentVal = startVal;
-    
-    // Fill the max buffer size (60)
-    for(int i = 0; i < 60; i++) {
-        // Randomly wander up or down by a small amount
-        // random(min, max) is inclusive of min but exclusive of max
-        int drift = random(-maxChange, maxChange + 1); 
-        
-        currentVal += drift;
-
-        // Clamp values so they don't go off the chart (VOC max is 500)
-        if(currentVal < 0) currentVal = 0;
-        if(currentVal > 500) currentVal = 500;
-
-        q.push(currentVal);
-    }
+    refreshCounter++;
+    display.setPartialWindow(0,0,416,240);
+    bool doPartial = (refreshCounter % 10 != 0) && !firstRefresh && !forceFullRefresh;
+    display.display(doPartial);
+    if(firstRefresh) firstRefresh = false;
 }
 
 void drawPage2(){
     page1 = false;
-    randomSeed(analogRead(0)); 
-    seedTestQueue(vocQueue, 120, 20); 
-    seedTestQueue(co2Queue, 800, 50);
-    seedTestQueue(noxQueue, 1, 5);
-
-    display.clearDisplay();
-    display.clearBuffer();
-    display.setTextColor(EPD_BLACK);
+    display.fillScreen(GxEPD_WHITE);
+    display.setFullWindow();
+    display.setTextColor(GxEPD_BLACK);
     // line across top seperating graphs from time/date
-    display.drawRect(0,20,416,2,EPD_BLACK); 
+    display.drawRect(0,20,416,2,GxEPD_BLACK); 
     display.setFont(&Rubik_Italic9pt7b);
     display.setCursor(4,16);
     display.printf("%02d/%02d  %d:%02d %s", getRTCcal().month, getRTCcal().date, getRTCTime().hours, getRTCTime().minutes, getRTCTime().am_pm ? "PM" : "AM");
     String tempUnit = json["unit_c"].as<int>() == 1 ? "C" : "F";
-    String tempHumStr = String((int)round(getTemp())) + tempUnit + "  " + (int)round(getHumidity()) + "%";
+    String tempHumStr = String(TEMP) + tempUnit + "  " + RH + "%";
     int16_t x1, y1; uint16_t w, h;
     display.getTextBounds(tempHumStr, 0, 0, &x1, &y1, &w, &h);
     // want the rightmost pixel to be at 412 (416-4)
     display.setCursor(413-w, 16);
-    display.printf("%d%s  %d%%", (int)round(getTemp()), tempUnit, (int)round(getHumidity()));
+    display.printf("%d%s  %d%%", TEMP, tempUnit, RH);
     // three empty graphs
-    drawGraphSkeleton("CO2", 632, 1); 
-    drawGraphSkeleton("VOC", 78, 2); 
-    drawGraphSkeleton("NOx", 1, 3); 
+    drawGraphSkeleton("CO2", CO2, 1); 
+    drawGraphSkeleton("VOC", VOC, 2); 
+    drawGraphSkeleton("NOx", NOx, 3); 
     // populate the graphs with points
     drawGraphPoints(co2Queue, 1); 
     drawGraphPoints(vocQueue, 2); 
     drawGraphPoints(noxQueue, 3);
-    display.display();
+    refreshCounter++;
+    display.setPartialWindow(0,0,416,240);
+    bool doPartial = (refreshCounter % 10 != 0) && !firstRefresh && !forceFullRefresh;
+    display.display(doPartial);
+    if(firstRefresh) firstRefresh = false;
 }

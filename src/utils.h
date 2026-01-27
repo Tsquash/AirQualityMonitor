@@ -6,7 +6,7 @@
 #include <LittleFS.h>
 
 // Global configuration document
-extern DynamicJsonDocument json;
+extern JsonDocument json;
 
 // MAC address utilities
 String macToStr(const uint8_t* mac);
@@ -16,7 +16,6 @@ String macLastThreeSegments(const uint8_t* mac);
 bool readConfig();
 bool saveConfig();
 
-// A fixed-size circular queue for graph data
 class DataQueue {
   public:
     static const int MAX_SIZE = 60;

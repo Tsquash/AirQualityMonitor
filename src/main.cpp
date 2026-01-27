@@ -21,18 +21,12 @@ void setup()
   readConfig();
   setupButtons();
   initializeScreen();
+  initializeQueues();
   if (checkBootHold(BTN2, 1000UL))
   {
     Serial.println("[BTN2] Held at boot");
     fallbackAP();
   }
-  /*
-  if (checkBootHold(BTN2, 1000UL))
-  {
-    Serial.println("[BTN2] Held at boot");
-    //TODO: add when B&W screenPrint("Entering Matter Commissioning Mode");
-  }
-  */
   if (!initializeSensors()) Serial.println("[SENSE] Initialization failed!");
   // no buttons were held, do I know the time, or do I need to set it because config was changed?
   
@@ -70,47 +64,40 @@ void setup()
     }
   }
 
-  // RTC either hasnt lost power or has now been set, continue normal operation
+  setRTCAlarms();
   updateDHT();
   updateCO2();
-  Serial.println("[SCREEN] Initial drawing");
+  delay(100);
   drawPage1();
-
-  /* SGP41 TYPICAL SEQUENCE
-  if (startSGP41Conditioning()) {
-    delay(10000);
-  } else {
-      Serial.println("Skipping conditioning (Sensor missing?)");
-  }
-  updateDHT(); // intial DHT read for the SGP41 comp
-  uint16_t voc, nox;
-  if (readSGP41Raw(voc, nox)) {
-    Serial.printf("VOC: %d, NOx: %d\n", voc, nox);
-  } else {
-    Serial.println("SGP41 Read Failed");
-  }
-  // turn the heater off since we read
-  if(!turnOffSGP41()){
-    Serial.println("Failed to turn off SGP41");
-  }
-  */
 }
 
 void loop()
 {
+  // Maintain the 1Hz Gas Index 
+  processGasSensors();
+
   if (pageChangeRequested) {
-    Serial.println("Handling page change");
     pageChangeRequested = false;
     changePage();
   }
-  /*
-  Serial.println("[LOOP]");
-  if(!updateDHT()){Serial.println("[DHT] Error updating DHT");}
-  if(!updateCO2()){Serial.println("[SCD41] Error updating SCD41");}
-  Serial.printf("[RTC] Time: %d:%d\n", getRTCTime().hours, getRTCTime().minutes);
-  drawPage1();
-  delay(30000);
-  */
+
+  if(rtc_interrupt_occured){
+    rtc_interrupt_occured = false; // Reset flag immediately
+    clearRTCInt(); // Determine which alarm fired by setting 'minute_interrupt'
+    if(minute_interrupt){
+      Serial.println("[MAIN] Minute Interrupt");
+      if (page1) drawPage1();
+      else drawPage2();
+    }
+    else{
+      Serial.println("[MAIN] T-10s Interrupt");
+      updateDHT(); 
+      updateCO2();
+      vocQueue.push(getVOCIndex());
+      co2Queue.push(getCO2());
+      noxQueue.push(getNOxIndex());
+    }
+  }
 }
 
 void fallbackAP()
