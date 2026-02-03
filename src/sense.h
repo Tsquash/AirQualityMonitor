@@ -43,6 +43,6 @@ max31328_calendar_t getRTCcal(); // returns the max date struct
 
 // CO2 Functions
 int getCO2();
-bool updateCO2();
+bool updateCO2(bool discard = false);
 
 #endif

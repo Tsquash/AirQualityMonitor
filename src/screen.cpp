@@ -14,6 +14,8 @@
 #include "myFont/RubikMedium12pt7b.h"
 #include "myFont/RubikRegular6pt7b.h"
 #include "myFont/RubikItalic9pt7b.h"
+#include "myFont/RubikRegular15pt7b.h"
+#include "myFont/RubikRegular18pt7b.h"
 #include "myBitmap/bitmaps.h"
 
 #define GxEPD2_DISPLAY_CLASS GxEPD2_BW
@@ -35,14 +37,8 @@ String DoWs[] = {
 // flag so that change page knows the current page
 bool page1 = true;
 
-// flag for first refresh
-bool firstRefresh = true;
-
 // counter for periodic full refresh
-int refreshCounter = 0;
-
-// flag to force full refresh on page change
-bool forceFullRefresh = false;
+int refreshCounter = 1;
 
 // use XIAO C6 SPI bus
 SPIClass epd_spi(FSPI);
@@ -69,12 +65,12 @@ String padStart(String str) {
 void initializeScreen(){ 
     epd_spi.begin(EPD_SCK, EPD_MISO, EPD_MOSI, EPD_CS);
     display.epd2.selectSPI(epd_spi, SPISettings(4000000, MSBFIRST, SPI_MODE0));
-    display.init(115200, true, 2, false);
+    display.init(115200, false, 2, false);
+    delay(100);
     display.setRotation(3);
-    display.writeScreenBuffer(GxEPD_WHITE); // set current buffer to white
-    // display.begin(THINKINK_TRICOLOR);
-    // display.begin(THINKINK_MONO);
-
+    display.clearScreen();
+    display.fillRect(0,0,416,240,GxEPD_WHITE);
+    display.display(false);
 }
 
 void initializeQueues() {
@@ -205,32 +201,31 @@ void screenPrint(String message){
 // TODO: display AP is sometimes called after an error. this error message should be able to be displayed below the AP info 
 void displayAP(uint8_t* mac) {
     page1 = false;
-    display.clearScreen();
     display.fillScreen(GxEPD_WHITE);
     display.setFont(&Rubik_Medium12pt7b);
     display.setTextColor(GxEPD_BLACK);
-    display.setCursor(0, 20);
+    display.setCursor(10, 30);
     display.printf("Config Mode:\n");
     display.setFont(&Rubik_Regular12pt7b);
     display.printf("Connect to WiFi SSID:\n");
     display.printf("AirQuality-%s\n", macLastThreeSegments(mac).c_str());
     display.printf("to configure the device.");
     Serial.printf("[SCREEN] AP MODE AirQuality-%06X ", macLastThreeSegments(mac));
-    display.display();
+    display.setPartialWindow(0,0,416,240);
+    display.display(true);
 }
 
 void changePage(){
     Serial.printf("changePage called, page1: %d\n", page1);
-    forceFullRefresh = true; // signal page draw functions to force full refresh
+    refreshCounter = 0; // reset counter so next refresh will be full
     if(page1) drawPage2();
     else drawPage1();
-    forceFullRefresh = false; // reset after page change
 }
 
 void drawPage1() {
     page1 = true;
-    display.fillScreen(GxEPD_WHITE);
     display.setFullWindow();
+    display.fillScreen(GxEPD_WHITE);
     display.setTextColor(GxEPD_BLACK);
     int16_t x1, y1; uint16_t w, h;
     // Date
@@ -268,22 +263,19 @@ void drawPage1() {
         display.drawRect(3 ,3, 410, 234, GxEPD_BLACK);
         display.drawRect(4, 4, 408, 232, GxEPD_BLACK);
         display.drawRect(5, 5, 406, 230, GxEPD_BLACK);
-        /* display.drawBitmap(85, 210, cautionBitmap, CAUITON_WIDTH, CAUTION_HEIGHT, GxEPD_BLACK);
-        display.setCursor(116, 228);
-        display.setFont(&Rubik_Regular9pt7b);
-        display.printf("High %s Levels Detected", NOx >= WARN_NOX ? "NOx" : VOC >= WARN_VOC ? "VOC" : "CO2"); */
     }
-    refreshCounter++;
-    display.setPartialWindow(0,0,416,240);
-    bool doPartial = (refreshCounter % 10 != 0) && !firstRefresh && !forceFullRefresh;
+    bool doPartial = (refreshCounter % 10 != 0);
+    if (doPartial) {
+        display.setPartialWindow(0,0,416,240);
+    }
     display.display(doPartial);
-    if(firstRefresh) firstRefresh = false;
+    refreshCounter++;
 }
 
 void drawPage2(){
     page1 = false;
-    display.fillScreen(GxEPD_WHITE);
     display.setFullWindow();
+    display.fillScreen(GxEPD_WHITE);
     display.setTextColor(GxEPD_BLACK);
     // line across top seperating graphs from time/date
     display.drawRect(0,20,416,2,GxEPD_BLACK); 
@@ -305,9 +297,10 @@ void drawPage2(){
     drawGraphPoints(co2Queue, 1); 
     drawGraphPoints(vocQueue, 2); 
     drawGraphPoints(noxQueue, 3);
-    refreshCounter++;
-    display.setPartialWindow(0,0,416,240);
-    bool doPartial = (refreshCounter % 10 != 0) && !firstRefresh && !forceFullRefresh;
+    bool doPartial = (refreshCounter % 10 != 0);
+    if (doPartial) {
+        display.setPartialWindow(0,0,416,240);
+    }
     display.display(doPartial);
-    if(firstRefresh) firstRefresh = false;
+    refreshCounter++;
 }

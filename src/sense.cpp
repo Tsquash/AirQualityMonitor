@@ -202,7 +202,7 @@ int getCO2()
   return CO2;
 }
 
-bool updateCO2()
+bool updateCO2(bool discard)
 {
   uint16_t co2Concentration = 0;
   float temperature = 0.0;
@@ -214,18 +214,20 @@ bool updateCO2()
   if (error)
   {
     printSensirionError(error, "SCD41 wakeUp");
-    CO2 = -1;
+    CO2 = 1;
     return false;
   }
   //
-  // Ignore first measurement after wake up.
+  // Ignore first measurement after power cycle
   //
-  error = SCD41.measureSingleShot();
-  if (error)
-  {
-    printSensirionError(error, "SCD41 measureSingleShot()");
-    CO2 = -1;
-    return false;
+  if(discard){
+    error = SCD41.measureSingleShot();
+    if (error)
+    {
+      printSensirionError(error, "SCD41 measureSingleShot()");
+      CO2 = 1;
+      return false;
+    }
   }
   //
   // Perform single shot measurement and read data.
@@ -235,7 +237,7 @@ bool updateCO2()
   if (error)
   {
     printSensirionError(error, "SCD41 measureAndReadSingleShot()");
-    CO2 = -1;
+    CO2 = 1;
     return false;
   }
   Serial.printf("[SCD41] CO2 concentration: %d\n", co2Concentration);

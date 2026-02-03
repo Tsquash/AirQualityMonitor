@@ -66,7 +66,7 @@ void setup()
 
   setRTCAlarms();
   updateDHT();
-  updateCO2();
+  updateCO2(true);
   delay(100);
   drawPage1();
 }
