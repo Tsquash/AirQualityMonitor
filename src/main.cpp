@@ -21,6 +21,7 @@ void setup()
   readConfig();
   setupButtons();
   initializeScreen();
+  drawStartup();
   initializeQueues();
   if (checkBootHold(BTN2, 1000UL))
   {
@@ -64,12 +65,11 @@ void setup()
     }
   }
 
-  // drawStartup();
   setRTCAlarms();
   updateDHT();
   updateCO2(true);
   delay(100);
-  refreshDisplay(false);
+  drawPage1();
 }
 
 void loop()
@@ -87,7 +87,7 @@ void loop()
     clearRTCInt(); // Determine which alarm fired by setting 'minute_interrupt'
     if(minute_interrupt){
       Serial.println("[MAIN] Minute Interrupt");
-      refreshDisplay(false);
+      page1 ? drawPage1() : drawPage2();
     }
     else{
       Serial.println("[MAIN] T-10s Interrupt");

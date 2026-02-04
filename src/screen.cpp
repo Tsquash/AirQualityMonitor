@@ -33,7 +33,7 @@
 #define MINUTES_PER_FULL 10
 
 // flag so that change page knows the current page
-bool page1 = false;
+bool page1 = true;
 int refreshCounter = 1;
 
 // use XIAO C6 SPI bus
@@ -58,50 +58,20 @@ String padStart(String str) {
   return str;
 }
 
-void drawCurrentPage()
-{
-    page1 ? drawPage1() : drawPage2();
-}
-
 void changePage()
 {
     page1 = !page1;
     refreshCounter = 0;
-    refreshDisplay(true); // force full
-}
-
-void refreshDisplay(bool forceFull)
-{
-    bool doFull = forceFull || (refreshCounter % MINUTES_PER_FULL == 0);
-
-    if (doFull)
-    {
-        display.setFullWindow();
-        drawCurrentPage();
-        display.display(false);   // full refresh
-        // display.writeScreenBufferAgain(); // not avail on UC8253
-        // IMPORTANT: reset partial state
-        //display.setPartialWindow(0, 0, 416, 240);
-        display.setFullWindow();
-        refreshCounter = 1; // next update is partial
-    }
-    else
-    {
-        //display.setPartialWindow(0, 0, 416, 240);
-        display.setFullWindow();
-        drawCurrentPage();
-        display.display(true);    // fast partial
-        refreshCounter++;
-    }
+    page1 ? drawPage1() : drawPage2();
 }
 
 void initializeScreen(){ 
     epd_spi.begin(EPD_SCK, EPD_MISO, EPD_MOSI, EPD_CS);
     display.epd2.selectSPI(epd_spi, SPISettings(4000000, MSBFIRST, SPI_MODE0));
     display.init(115200, true, 2, false);
-    delay(100);
     display.setRotation(3);
-    display.clearScreen();
+    display.fillRect(0,0,416,240, GxEPD_WHITE);
+    display.display();
 }
 
 void initializeQueues() {
@@ -232,6 +202,7 @@ void screenPrint(String message){
 // TODO: display AP is sometimes called after an error. this error message should be able to be displayed below the AP info 
 void displayAP(uint8_t* mac) {
     page1 = false;
+    display.setFullWindow();
     display.fillScreen(GxEPD_WHITE);
     display.setTextColor(GxEPD_BLACK);
     display.setFont(&Rubik_Regular18pt7b);
@@ -246,12 +217,14 @@ void displayAP(uint8_t* mac) {
     display.setCursor(29, 171);
     display.printf("to configure the device.");
     Serial.printf("[SCREEN] AP MODE AirQuality-%06X ", macLastThreeSegments(mac));
-    refreshDisplay(true);
+    display.display(true);
 }
 
 void drawStartup() {
     page1 = false;
+    display.setFullWindow();
     display.fillScreen(GxEPD_WHITE);
+
     display.setTextColor(GxEPD_BLACK);
     display.setFont(&Rubik_Regular18pt7b);
     display.setCursor(21,46);
@@ -264,11 +237,12 @@ void drawStartup() {
     display.printf("Allow 1 hour after start up");
     display.setCursor(29, 188);
     display.printf("for readings to normalize!");
-    refreshDisplay(true);
+    display.display(true);
 }
 
 void drawPage1() {
     page1 = true;
+    display.setFullWindow();
     display.fillScreen(GxEPD_WHITE);
     display.setTextColor(GxEPD_BLACK);
     int16_t x1, y1; uint16_t w, h;
@@ -308,10 +282,17 @@ void drawPage1() {
         display.drawRect(4, 4, 408, 232, GxEPD_BLACK);
         display.drawRect(5, 5, 406, 230, GxEPD_BLACK);
     }
+    bool doFull = (refreshCounter % 10 == 0);
+    display.display(!doFull);
+    if (doFull) {
+        display.display(true);
+    }
+    refreshCounter++;
 }
 
 void drawPage2(){
     page1 = false;
+    display.setFullWindow();
     display.fillScreen(GxEPD_WHITE);
     display.setTextColor(GxEPD_BLACK);
     // line across top seperating graphs from time/date
@@ -334,4 +315,10 @@ void drawPage2(){
     drawGraphPoints(co2Queue, 1); 
     drawGraphPoints(vocQueue, 2); 
     drawGraphPoints(noxQueue, 3);
+    bool doFull = (refreshCounter % 10 == 0);
+    display.display(!doFull);
+    if (doFull) {
+        display.display(true);
+    }
+    refreshCounter++;
 }
