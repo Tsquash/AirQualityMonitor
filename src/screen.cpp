@@ -30,22 +30,14 @@
 #define EPD_RESET 20  // can set to -1 and share with microcontroller Reset!
 #define EPD_SPI &epd_spi // primary SPI
 
-String DoWs[] = {
-    "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"
-};
+#define MINUTES_PER_FULL 10
 
 // flag so that change page knows the current page
-bool page1 = true;
-
-// counter for periodic full refresh
+bool page1 = false;
 int refreshCounter = 1;
 
 // use XIAO C6 SPI bus
 SPIClass epd_spi(FSPI);
-// 3.7" Tricolor Display with 416x240 pixels and UC8253 chipset
-// ThinkInk_370_Tricolor_BABMFGNR display(EPD_DC, EPD_RESET, EPD_CS, SRAM_CS, EPD_BUSY, EPD_SPI);
-// 3.7" Mono display
-// ThinkInk_370_Mono_BAAMFGN display(EPD_DC, EPD_RESET, EPD_CS, SRAM_CS, EPD_BUSY, EPD_SPI);
 // GxEPD2 Definition: 
 #define MAX_HEIGHT(EPD) (EPD::HEIGHT <= MAX_DISPLAY_BUFFER_SIZE / (EPD::WIDTH / 8) ? EPD::HEIGHT : MAX_DISPLAY_BUFFER_SIZE / (EPD::WIDTH / 8))
 #define MAX_DISPLAY_BUFFER_SIZE 65536ul
@@ -55,6 +47,10 @@ DataQueue vocQueue;
 DataQueue co2Queue;
 DataQueue noxQueue;
 
+String DoWs[] = {
+    "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"
+}; 
+
 String padStart(String str) {
   while (str.length() < 2) {
     str = '0' + str;
@@ -62,15 +58,50 @@ String padStart(String str) {
   return str;
 }
 
+void drawCurrentPage()
+{
+    page1 ? drawPage1() : drawPage2();
+}
+
+void changePage()
+{
+    page1 = !page1;
+    refreshCounter = 0;
+    refreshDisplay(true); // force full
+}
+
+void refreshDisplay(bool forceFull)
+{
+    bool doFull = forceFull || (refreshCounter % MINUTES_PER_FULL == 0);
+
+    if (doFull)
+    {
+        display.setFullWindow();
+        drawCurrentPage();
+        display.display(false);   // full refresh
+        // display.writeScreenBufferAgain(); // not avail on UC8253
+        // IMPORTANT: reset partial state
+        //display.setPartialWindow(0, 0, 416, 240);
+        display.setFullWindow();
+        refreshCounter = 1; // next update is partial
+    }
+    else
+    {
+        //display.setPartialWindow(0, 0, 416, 240);
+        display.setFullWindow();
+        drawCurrentPage();
+        display.display(true);    // fast partial
+        refreshCounter++;
+    }
+}
+
 void initializeScreen(){ 
     epd_spi.begin(EPD_SCK, EPD_MISO, EPD_MOSI, EPD_CS);
     display.epd2.selectSPI(epd_spi, SPISettings(4000000, MSBFIRST, SPI_MODE0));
-    display.init(115200, false, 2, false);
+    display.init(115200, true, 2, false);
     delay(100);
     display.setRotation(3);
     display.clearScreen();
-    display.fillRect(0,0,416,240,GxEPD_WHITE);
-    display.display(false);
 }
 
 void initializeQueues() {
@@ -202,29 +233,42 @@ void screenPrint(String message){
 void displayAP(uint8_t* mac) {
     page1 = false;
     display.fillScreen(GxEPD_WHITE);
-    display.setFont(&Rubik_Medium12pt7b);
     display.setTextColor(GxEPD_BLACK);
-    display.setCursor(10, 30);
-    display.printf("Config Mode:\n");
-    display.setFont(&Rubik_Regular12pt7b);
-    display.printf("Connect to WiFi SSID:\n");
+    display.setFont(&Rubik_Regular18pt7b);
+    display.setCursor(21,46);
+    display.printf("Config Mode");
+    display.fillRect(21, 56, 204, 2, GxEPD_BLACK);
+    display.setFont(&Rubik_Regular15pt7b);
+    display.setCursor(29, 96);
+    display.printf("Connect to WiFi SSID:");
+    display.setCursor(50, 134);
     display.printf("AirQuality-%s\n", macLastThreeSegments(mac).c_str());
+    display.setCursor(29, 171);
     display.printf("to configure the device.");
     Serial.printf("[SCREEN] AP MODE AirQuality-%06X ", macLastThreeSegments(mac));
-    display.setPartialWindow(0,0,416,240);
-    display.display(true);
+    refreshDisplay(true);
 }
 
-void changePage(){
-    Serial.printf("changePage called, page1: %d\n", page1);
-    refreshCounter = 0; // reset counter so next refresh will be full
-    if(page1) drawPage2();
-    else drawPage1();
+void drawStartup() {
+    page1 = false;
+    display.fillScreen(GxEPD_WHITE);
+    display.setTextColor(GxEPD_BLACK);
+    display.setFont(&Rubik_Regular18pt7b);
+    display.setCursor(21,46);
+    display.printf("Air Quality Monitor");
+    display.fillRect(21, 55, 307, 2, GxEPD_BLACK);
+    display.setFont(&Rubik_Regular15pt7b);
+    display.setCursor(29, 96);
+    display.printf("Starting up...");
+    display.setCursor(29, 152);
+    display.printf("Allow 1 hour after start up");
+    display.setCursor(29, 188);
+    display.printf("for readings to normalize!");
+    refreshDisplay(true);
 }
 
 void drawPage1() {
     page1 = true;
-    display.setFullWindow();
     display.fillScreen(GxEPD_WHITE);
     display.setTextColor(GxEPD_BLACK);
     int16_t x1, y1; uint16_t w, h;
@@ -264,17 +308,10 @@ void drawPage1() {
         display.drawRect(4, 4, 408, 232, GxEPD_BLACK);
         display.drawRect(5, 5, 406, 230, GxEPD_BLACK);
     }
-    bool doPartial = (refreshCounter % 10 != 0);
-    if (doPartial) {
-        display.setPartialWindow(0,0,416,240);
-    }
-    display.display(doPartial);
-    refreshCounter++;
 }
 
 void drawPage2(){
     page1 = false;
-    display.setFullWindow();
     display.fillScreen(GxEPD_WHITE);
     display.setTextColor(GxEPD_BLACK);
     // line across top seperating graphs from time/date
@@ -297,10 +334,4 @@ void drawPage2(){
     drawGraphPoints(co2Queue, 1); 
     drawGraphPoints(vocQueue, 2); 
     drawGraphPoints(noxQueue, 3);
-    bool doPartial = (refreshCounter % 10 != 0);
-    if (doPartial) {
-        display.setPartialWindow(0,0,416,240);
-    }
-    display.display(doPartial);
-    refreshCounter++;
 }

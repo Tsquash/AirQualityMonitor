@@ -64,11 +64,12 @@ void setup()
     }
   }
 
+  // drawStartup();
   setRTCAlarms();
   updateDHT();
   updateCO2(true);
   delay(100);
-  drawPage1();
+  refreshDisplay(false);
 }
 
 void loop()
@@ -86,8 +87,7 @@ void loop()
     clearRTCInt(); // Determine which alarm fired by setting 'minute_interrupt'
     if(minute_interrupt){
       Serial.println("[MAIN] Minute Interrupt");
-      if (page1) drawPage1();
-      else drawPage2();
+      refreshDisplay(false);
     }
     else{
       Serial.println("[MAIN] T-10s Interrupt");
