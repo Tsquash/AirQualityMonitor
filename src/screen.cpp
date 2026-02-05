@@ -30,7 +30,7 @@
 #define EPD_RESET 20  // can set to -1 and share with microcontroller Reset!
 #define EPD_SPI &epd_spi // primary SPI
 
-#define MINUTES_PER_FULL 10
+#define MINUTES_PER_FULL 30
 
 // flag so that change page knows the current page
 bool page1 = true;
@@ -282,7 +282,7 @@ void drawPage1() {
         display.drawRect(4, 4, 408, 232, GxEPD_BLACK);
         display.drawRect(5, 5, 406, 230, GxEPD_BLACK);
     }
-    bool doFull = (refreshCounter % 10 == 0);
+    bool doFull = (refreshCounter % MINUTES_PER_FULL == 0);
     display.display(!doFull);
     if (doFull) {
         display.display(true);
@@ -315,7 +315,7 @@ void drawPage2(){
     drawGraphPoints(co2Queue, 1); 
     drawGraphPoints(vocQueue, 2); 
     drawGraphPoints(noxQueue, 3);
-    bool doFull = (refreshCounter % 10 == 0);
+    bool doFull = (refreshCounter % MINUTES_PER_FULL == 0);
     display.display(!doFull);
     if (doFull) {
         display.display(true);
