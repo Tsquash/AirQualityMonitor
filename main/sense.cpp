@@ -85,7 +85,8 @@ bool updateDHT()
   switch (status)
   {
   case DHT20_OK:
-    TEMP = (json["unit_c"].as<int>() == 1) ? (int)round(static_cast<double>(DHT.getTemperature())) : (int)round((static_cast<double>(DHT.getTemperature()) * 1.8) + 32.0);
+    tempC = DHT.getTemperature();
+    TEMP = (json["unit_c"].as<int>() == 1) ? (int)round(static_cast<double>(tempC)) : (int)round((static_cast<double>(tempC) * 1.8) + 32.0);
     RH = (int)round(static_cast<double>(DHT.getHumidity()));
     return true;
   case DHT20_ERROR_CHECKSUM:

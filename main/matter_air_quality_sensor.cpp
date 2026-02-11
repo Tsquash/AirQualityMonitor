@@ -1,7 +1,8 @@
 #include "sense.h"
 #include "matter_air_quality_sensor.h"
+#include <platform/CHIPDeviceLayer.h>
 
-float AirQualitySensor::getTemperature() { return (float)TEMP; }
+float AirQualitySensor::getTemperature() { return tempC; }
 float AirQualitySensor::getHumidity() { return (float)RH; }     
 float AirQualitySensor::getCO2() { return (float)CO2; }
 
@@ -26,40 +27,56 @@ std::shared_ptr<MatterAirQualitySensor> MatterAirQualitySensor::CreateEndpoint(
         return nullptr;
     }
 
-    // 2. Add "Device Types" 
-    // This tells HomeKit to treat this single endpoint as multiple virtual devices.
-    // 0x0302 = Temperature Sensor
-    // 0x0307 = Humidity Sensor
-    endpoint::add_device_type(endpoint, 0x0302, 1); 
-    endpoint::add_device_type(endpoint, 0x0307, 1);
+    // 2. Add Device Types
+    endpoint::add_device_type(endpoint, 0x0302, 1); // Temperature Sensor
+    endpoint::add_device_type(endpoint, 0x0307, 1); // Humidity Sensor
 
     // -------------------------------------------------------------------------
-    // 3. Create Clusters with Mandatory Attributes for HomeKit
+    // TEMPERATURE
     // -------------------------------------------------------------------------
-
-    // --- Temperature ---
     temperature_measurement::config_t temp_config;
     cluster_t *temp_cluster = temperature_measurement::create(endpoint, &temp_config, CLUSTER_FLAG_SERVER);
     
-    // Explicitly add Min and Max (Required by HomeKit to display the dial/number)
-    // Values are in 0.01 degrees C. (-40C to 85C)
+    // Min/Max/MeasuredValue
     attribute::create(temp_cluster, TemperatureMeasurement::Attributes::MinMeasuredValue::Id, ATTRIBUTE_FLAG_NULLABLE, esp_matter_int16(-4000));
     attribute::create(temp_cluster, TemperatureMeasurement::Attributes::MaxMeasuredValue::Id, ATTRIBUTE_FLAG_NULLABLE, esp_matter_int16(8500));
-    // Ensure MeasuredValue exists
     attribute::create(temp_cluster, TemperatureMeasurement::Attributes::MeasuredValue::Id, ATTRIBUTE_FLAG_NULLABLE, esp_matter_int16(0));
 
-    // --- Humidity ---
+    // -------------------------------------------------------------------------
+    // HUMIDITY
+    // -------------------------------------------------------------------------
     relative_humidity_measurement::config_t humid_config;
     cluster_t *humid_cluster = relative_humidity_measurement::create(endpoint, &humid_config, CLUSTER_FLAG_SERVER);
+    
+    // Min/Max/MeasuredValue
     attribute::create(humid_cluster, RelativeHumidityMeasurement::Attributes::MinMeasuredValue::Id, ATTRIBUTE_FLAG_NULLABLE, esp_matter_uint16(0));
     attribute::create(humid_cluster, RelativeHumidityMeasurement::Attributes::MaxMeasuredValue::Id, ATTRIBUTE_FLAG_NULLABLE, esp_matter_uint16(10000));
     attribute::create(humid_cluster, RelativeHumidityMeasurement::Attributes::MeasuredValue::Id, ATTRIBUTE_FLAG_NULLABLE, esp_matter_uint16(0));
 
-    // --- CO2 ---
+    // -------------------------------------------------------------------------
+    // CO2 (Concentration Measurement)
+    // -------------------------------------------------------------------------
     carbon_dioxide_concentration_measurement::config_t co2_config;
+    // REMOVED: co2_config.feature_map = 0x0F; (This caused the error)
+
     cluster_t *co2_cluster = carbon_dioxide_concentration_measurement::create(endpoint, &co2_config, CLUSTER_FLAG_SERVER);
-    // Create MeasuredValue (Single Precision Float)
+    
+    // FIX: Manually update the Feature Map Attribute (ID 0xFFFC)
+    // We want to enable NumericMeasurement (Bit 0), LevelIndication (Bit 1), Medium (Bit 2), Critical (Bit 3) -> 0x0F
+    // We get the attribute pointer and set the value directly.
+    attribute_t *featureMapAttr = attribute::get(co2_cluster, 0xFFFC); // 0xFFFC is the standard FeatureMap ID
+    if (featureMapAttr) {
+        esp_matter_attr_val_t val = esp_matter_uint32(0x0F);
+        attribute::set_val(featureMapAttr, &val);
+    }
+
+    // Mandatory Attributes for Numeric Mode:
+    attribute::create(co2_cluster, CarbonDioxideConcentrationMeasurement::Attributes::MinMeasuredValue::Id, ATTRIBUTE_FLAG_NULLABLE, esp_matter_float(0.0));
+    attribute::create(co2_cluster, CarbonDioxideConcentrationMeasurement::Attributes::MaxMeasuredValue::Id, ATTRIBUTE_FLAG_NULLABLE, esp_matter_float(5000.0));
     attribute::create(co2_cluster, CarbonDioxideConcentrationMeasurement::Attributes::MeasuredValue::Id, ATTRIBUTE_FLAG_NULLABLE, esp_matter_float(0.0));
+
+    // Measurement Unit (0x0004) -> PPM (0)
+    attribute::create(co2_cluster, CarbonDioxideConcentrationMeasurement::Attributes::MeasurementUnit::Id, ATTRIBUTE_FLAG_NULLABLE, esp_matter_uint8(0));
 
     return std::make_shared<MatterAirQualitySensor>(endpoint, airQualitySensor);
 }
@@ -67,29 +84,29 @@ std::shared_ptr<MatterAirQualitySensor> MatterAirQualitySensor::CreateEndpoint(
 void MatterAirQualitySensor::UpdateMeasurements() {
     if (!m_airQualitySensor) return;
 
-    // --- Temperature (0.01 C) ---
+    // --- Temperature ---
     float temperature = m_airQualitySensor->getTemperature();
     int16_t temp_matter = static_cast<int16_t>(temperature * 100);
     UpdateAttribute(TemperatureMeasurement::Id, TemperatureMeasurement::Attributes::MeasuredValue::Id, temp_matter);
 
-    // --- Humidity (0.01 %) ---
+    // --- Humidity ---
     float humidity = m_airQualitySensor->getHumidity();
     uint16_t hum_matter = static_cast<uint16_t>(humidity * 100);
     UpdateAttribute(RelativeHumidityMeasurement::Id, RelativeHumidityMeasurement::Attributes::MeasuredValue::Id, hum_matter);
 
-    // --- CO2 (Float PPM) ---
+    // --- CO2 ---
     float co2 = m_airQualitySensor->getCO2();
     UpdateAttribute(CarbonDioxideConcentrationMeasurement::Id, CarbonDioxideConcentrationMeasurement::Attributes::MeasuredValue::Id, co2);
 
-    // --- Air Quality Logic ---
+    // --- Air Quality Status ---
     using AirQualityEnum = AirQuality::AirQualityEnum;
     AirQualityEnum overallQuality = AirQualityEnum::kGood;
 
     if (co2 > 1000) overallQuality = AirQualityEnum::kFair;
     if (co2 > 1500) overallQuality = AirQualityEnum::kPoor;
 
-    // Cast to uint8_t or int16_t depending on how the Enum is defined in your specific SDK version
-    UpdateAttribute(AirQuality::Id, AirQuality::Attributes::AirQuality::Id, static_cast<int16_t>(overallQuality));
+    // FIX: Use uint8_t for Enums
+    UpdateAttribute(AirQuality::Id, AirQuality::Attributes::AirQuality::Id, static_cast<uint8_t>(overallQuality));
 }
 
 // --- Helper Implementations ---
@@ -99,15 +116,34 @@ void MatterAirQualitySensor::UpdateMeasurements() {
 
 void MatterAirQualitySensor::UpdateAttribute(uint32_t clusterId, uint32_t attributeId, float value) {
     esp_matter_attr_val_t val = esp_matter_float(value);
+    
+    // LOCK
+    chip::DeviceLayer::PlatformMgr().LockChipStack();
     attribute::update(endpoint::get_id(m_endpoint), clusterId, attributeId, &val);
+    chip::DeviceLayer::PlatformMgr().UnlockChipStack();
+    // UNLOCK
 }
 
 void MatterAirQualitySensor::UpdateAttribute(uint32_t clusterId, uint32_t attributeId, uint16_t value) {
     esp_matter_attr_val_t val = esp_matter_uint16(value);
+    
+    chip::DeviceLayer::PlatformMgr().LockChipStack();
     attribute::update(endpoint::get_id(m_endpoint), clusterId, attributeId, &val);
+    chip::DeviceLayer::PlatformMgr().UnlockChipStack();
 }
 
 void MatterAirQualitySensor::UpdateAttribute(uint32_t clusterId, uint32_t attributeId, int16_t value) {
     esp_matter_attr_val_t val = esp_matter_int16(value);
+    
+    chip::DeviceLayer::PlatformMgr().LockChipStack();
     attribute::update(endpoint::get_id(m_endpoint), clusterId, attributeId, &val);
+    chip::DeviceLayer::PlatformMgr().UnlockChipStack();
+}
+
+void MatterAirQualitySensor::UpdateAttribute(uint32_t clusterId, uint32_t attributeId, uint8_t value) {
+    esp_matter_attr_val_t val = esp_matter_uint8(value);
+    
+    chip::DeviceLayer::PlatformMgr().LockChipStack();
+    attribute::update(endpoint::get_id(m_endpoint), clusterId, attributeId, &val);
+    chip::DeviceLayer::PlatformMgr().UnlockChipStack();
 }

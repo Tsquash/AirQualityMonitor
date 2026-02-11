@@ -34,6 +34,7 @@ private:
     void UpdateAttribute(uint32_t clusterId, uint32_t attributeId, float value);
     void UpdateAttribute(uint32_t clusterId, uint32_t attributeId, uint16_t value);
     void UpdateAttribute(uint32_t clusterId, uint32_t attributeId, int16_t value);
+    void UpdateAttribute(uint32_t clusterId, uint32_t attributeId, uint8_t value);
 };
 
 #endif

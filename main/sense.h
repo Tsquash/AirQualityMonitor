@@ -13,6 +13,7 @@
 bool initializeSensors();
 void initGasAlgorithms(); // Setup gas algorithm parameters
 
+extern float tempC;
 extern int TEMP;
 extern int RH;
 extern int CO2;
