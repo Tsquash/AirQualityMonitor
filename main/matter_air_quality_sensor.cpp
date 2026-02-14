@@ -5,6 +5,8 @@
 float AirQualitySensor::getTemperature() { return tempC; }
 float AirQualitySensor::getHumidity() { return (float)RH; }     
 float AirQualitySensor::getCO2() { return (float)CO2; }
+int32_t AirQualitySensor::getVOCIndex() { return VOC; }
+int32_t AirQualitySensor::getNOxIndex() { return NOx; }
 
 using namespace esp_matter;
 using namespace esp_matter::endpoint;
@@ -78,6 +80,55 @@ std::shared_ptr<MatterAirQualitySensor> MatterAirQualitySensor::CreateEndpoint(
     // Measurement Unit (0x0004) -> PPM (0)
     attribute::create(co2_cluster, CarbonDioxideConcentrationMeasurement::Attributes::MeasurementUnit::Id, ATTRIBUTE_FLAG_NULLABLE, esp_matter_uint8(0));
 
+    // Add VOC and NOx clusters to the Matter endpoint
+    // -------------------------------------------------------------------------
+    // VOC (tVOC Measurement)
+    // -------------------------------------------------------------------------
+    total_volatile_organic_compounds_concentration_measurement::config_t voc_config;
+    cluster_t *voc_cluster = total_volatile_organic_compounds_concentration_measurement::create(
+        endpoint, &voc_config, CLUSTER_FLAG_SERVER);
+
+    attribute_t *vocFeatureMapAttr = attribute::get(voc_cluster, 0xFFFC);
+    if (vocFeatureMapAttr) {
+        esp_matter_attr_val_t val = esp_matter_uint32(0x0F);
+        attribute::set_val(vocFeatureMapAttr, &val);
+    }
+
+    attribute::create(voc_cluster, TotalVolatileOrganicCompoundsConcentrationMeasurement::Attributes::MinMeasuredValue::Id,
+                      ATTRIBUTE_FLAG_NULLABLE, esp_matter_float(1.0));
+    attribute::create(voc_cluster, TotalVolatileOrganicCompoundsConcentrationMeasurement::Attributes::MaxMeasuredValue::Id,
+                      ATTRIBUTE_FLAG_NULLABLE, esp_matter_float(500.0));
+    attribute::create(voc_cluster, TotalVolatileOrganicCompoundsConcentrationMeasurement::Attributes::MeasuredValue::Id,
+                      ATTRIBUTE_FLAG_NULLABLE, esp_matter_float(1.0));
+    attribute::create(voc_cluster, TotalVolatileOrganicCompoundsConcentrationMeasurement::Attributes::MeasurementUnit::Id,
+                      ATTRIBUTE_FLAG_NULLABLE, esp_matter_uint8(4)); // ug/m3
+    attribute::create(voc_cluster, TotalVolatileOrganicCompoundsConcentrationMeasurement::Attributes::MeasurementMedium::Id,
+                      ATTRIBUTE_FLAG_NULLABLE, esp_matter_uint8(0)); // air
+
+    // -------------------------------------------------------------------------
+    // NOx (NO2 Measurement)
+    // -------------------------------------------------------------------------
+    nitrogen_dioxide_concentration_measurement::config_t nox_config;
+    cluster_t *nox_cluster = nitrogen_dioxide_concentration_measurement::create(
+        endpoint, &nox_config, CLUSTER_FLAG_SERVER);
+
+    attribute_t *noxFeatureMapAttr = attribute::get(nox_cluster, 0xFFFC);
+    if (noxFeatureMapAttr) {
+        esp_matter_attr_val_t val = esp_matter_uint32(0x0F);
+        attribute::set_val(noxFeatureMapAttr, &val);
+    }
+
+    attribute::create(nox_cluster, NitrogenDioxideConcentrationMeasurement::Attributes::MinMeasuredValue::Id,
+                      ATTRIBUTE_FLAG_NULLABLE, esp_matter_float(1.0));
+    attribute::create(nox_cluster, NitrogenDioxideConcentrationMeasurement::Attributes::MaxMeasuredValue::Id,
+                      ATTRIBUTE_FLAG_NULLABLE, esp_matter_float(500.0));
+    attribute::create(nox_cluster, NitrogenDioxideConcentrationMeasurement::Attributes::MeasuredValue::Id,
+                      ATTRIBUTE_FLAG_NULLABLE, esp_matter_float(1.0));
+    attribute::create(nox_cluster, NitrogenDioxideConcentrationMeasurement::Attributes::MeasurementUnit::Id,
+                      ATTRIBUTE_FLAG_NULLABLE, esp_matter_uint8(4)); // ug/m3 (wrong unit :( only one that works)
+    attribute::create(nox_cluster, NitrogenDioxideConcentrationMeasurement::Attributes::MeasurementMedium::Id,
+                      ATTRIBUTE_FLAG_NULLABLE, esp_matter_uint8(0)); // air
+
     return std::make_shared<MatterAirQualitySensor>(endpoint, airQualitySensor);
 }
 
@@ -98,14 +149,45 @@ void MatterAirQualitySensor::UpdateMeasurements() {
     float co2 = m_airQualitySensor->getCO2();
     UpdateAttribute(CarbonDioxideConcentrationMeasurement::Id, CarbonDioxideConcentrationMeasurement::Attributes::MeasuredValue::Id, co2);
 
-    // --- Air Quality Status ---
+    // --- VOC ---
+    float voc = static_cast<float>(m_airQualitySensor->getVOCIndex());
+    if (voc < 1.0f) voc = 1.0f;
+    if (voc > 500.0f) voc = 500.0f;
+    UpdateAttribute(TotalVolatileOrganicCompoundsConcentrationMeasurement::Id,
+                    TotalVolatileOrganicCompoundsConcentrationMeasurement::Attributes::MeasuredValue::Id,
+                    voc);
+
+    // --- NOx ---
+    float nox = static_cast<float>(m_airQualitySensor->getNOxIndex());
+    if (nox < 1.0f) nox = 1.0f;
+    if (nox > 500.0f) nox = 500.0f;
+    UpdateAttribute(NitrogenDioxideConcentrationMeasurement::Id,
+                    NitrogenDioxideConcentrationMeasurement::Attributes::MeasuredValue::Id,
+                    nox);
+
+    
+    //      good, fair, moderate, poor, very poor, extremely poor
+    // CO2: <800, <1200, <1500, <2000, <3000, 3000+ 
+    // VOC: <100, <150,  <200,  <300,  <400,  <500
+    // NO2: <1,   <5,    <20,   <100,  <250,  <500
+
     using AirQualityEnum = AirQuality::AirQualityEnum;
-    AirQualityEnum overallQuality = AirQualityEnum::kGood;
 
-    if (co2 > 1000) overallQuality = AirQualityEnum::kFair;
-    if (co2 > 1500) overallQuality = AirQualityEnum::kPoor;
+    auto determineLevel = [](float value, float t0, float t1, float t2, float t3, float t4) -> AirQualityEnum {
+        if (value <= t0) return AirQualityEnum::kGood;
+        if (value <= t1) return AirQualityEnum::kFair;
+        if (value <= t2) return AirQualityEnum::kModerate;
+        if (value <= t3) return AirQualityEnum::kPoor;
+        if (value <= t4) return AirQualityEnum::kVeryPoor;
+        return AirQualityEnum::kExtremelyPoor;
+    };
 
-    // FIX: Use uint8_t for Enums
+    AirQualityEnum co2Quality = determineLevel(co2, 800, 1200, 1500, 2000, 3000);
+    AirQualityEnum vocQuality = determineLevel(voc, 100, 150, 200, 300, 400);
+    AirQualityEnum noxQuality = determineLevel(nox, 1, 5, 20, 100, 250);
+
+    AirQualityEnum overallQuality = std::max({ co2Quality, vocQuality, noxQuality });
+
     UpdateAttribute(AirQuality::Id, AirQuality::Attributes::AirQuality::Id, static_cast<uint8_t>(overallQuality));
 }
 

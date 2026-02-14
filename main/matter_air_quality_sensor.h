@@ -8,6 +8,8 @@ struct AirQualitySensor {
     float getTemperature();
     float getHumidity();
     float getCO2();
+    int32_t getVOCIndex(); // Added for VOC readings
+    int32_t getNOxIndex(); // Added for NOx readings
 };
 
 // Use the standard namespaces to fix "AirQualityEnum not declared"

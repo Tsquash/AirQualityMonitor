@@ -268,7 +268,8 @@ void drawPage1() {
     int smaller_index = ((VOC - 1.0) / (500 - 1.0)) * (187 - 1) + 1; // map 1-500 to 1-187
     display.drawBitmap(109+smaller_index, 190, lower_index_pointer, L_POINTER_WIDTH, L_POINTER_HEIGHT, GxEPD_BLACK);
     display.drawBitmap(112+smaller_index, 187, upper_index_pointer, U_POINTER_WIDTH, U_POINTER_HEIGHT, GxEPD_BLACK);
-    String quality = VOC<=100 ? "Good" : VOC<=250 ? "Fair" : "Poor";
+    // VOC: <100, <150,  <200,  <300,  <400,  <500
+    String quality = VOC<=100 ? "Good" : VOC<=150 ? "Fair" : VOC<=200 ? "Moderate" : VOC<=300 ? "Poor" : VOC<=400 ? "Very Poor" : "Extremely Poor";
     display.setCursor(121+smaller_index, 200);
     display.setFont(&Rubik_Regular6pt7b);
     display.printf("%d - %s", VOC, quality);
