@@ -11,11 +11,10 @@ extern DataQueue noxQueue;
 void initializeScreen();
 void initializeQueues();
 void screenPrint(String message);
-void displayAP(uint8_t* mac);
 void changePage();
-void refreshDisplay(bool forceFull);
 void drawPage1();
 void drawPage2();
+void drawCommission();
 void drawStartup();
 /*
 bool updateMinute(); // updates the minute value and sets air quality vars

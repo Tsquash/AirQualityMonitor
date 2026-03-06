@@ -1,131 +1,126 @@
 #include <Arduino.h>
-#include "sense.h"        // rtc and sensors (I2C handling)
-#include "screen.h"       // eink
-#include "buttons.h"      // button handling
-#include "utils.h"        // file management helpers
-#include "wifi_manager.h" // connecting to wifi
-#include "web_portal.h"   // captive portal
-#include "time_manager.h" // all things NTP
-#undef IPADDR_NONE
-#undef INADDR_NONE
-#include <Matter.h>       // matter over thread / wifi
+#include "sense.h"                     // rtc and sensors (I2C handling)
+#include "screen.h"                    // eink
+#include "buttons.h"                   // button handling
+#include "utils.h"                     // file management helpers
+//#include "wifi_manager.h"              // connecting to wifi
+//#include "web_portal.h"                // captive portal
+// #include "time_manager.h"              // all things NTP
+#include <Matter.h>
 #include "matter_air_quality_sensor.h" // Include the new air quality sensor header
 
-WiFiManager wifiManager;
-WebPortal webPortal;
-TimeManager timeManager;
+// WiFiManager wifiManager;
+// WebPortal webPortal;
+// TimeManager timeManager;
 // List of Matter Endpoints for this Node
 std::shared_ptr<MatterAirQualitySensor> matterAirQualitySensor; // Declare the air quality sensor
 
-void fallbackAP();
-void handleCaptivePortal();
+// void fallbackAP();
+// void handleCaptivePortal();
 
-#define MATTER true
+bool matterCommissioned = false; // this will probably need to be extern?
+bool shouldDecommission = false;
+unsigned long lastRtcSyncAttemptMs = 0;
+constexpr unsigned long RTC_SYNC_INTERVAL_MS = 60UL * 60UL * 1000UL; // 1 hour
 
 void setup()
 {
   Serial.begin(115200);
-  LittleFS.begin(true);
-  readConfig();
+
   setupButtons();
+  if (Matter.isDeviceCommissioned() && checkBootHold(BTN2, 1000UL))
+  {
+    Serial.println("[BTN2] Held at boot — decommissioning");
+    shouldDecommission = true;
+  }
+
   initializeScreen();
-  drawStartup();
   initializeQueues();
-  if (checkBootHold(BTN2, 1000UL))
-  {
-    Serial.println("[BTN2] Held at boot");
-    fallbackAP();
+  initializeSensors();
+
+  // Configure Matter node and start
+  // Matter manages WiFi entirely through ESP-IDF's Device Layer.
+  // Do NOT call Arduino WiFi functions (WiFi.begin, WiFi.disconnect, etc.)
+  // as they bypass Matter's event handlers and leave the Arduino WiFi class
+  // in a desynced state where WiFi.status() never reflects reality.
+  node::config_t node_config;
+  node_t *root_node = node::create(&node_config, NULL, NULL);
+  root_node ? Serial.println("[Matter] Root Node created successfully.") : Serial.println("[Matter] Failed to create Root Node!");
+  auto sensorData = std::make_shared<AirQualitySensor>();
+  matterAirQualitySensor = MatterAirQualitySensor::CreateEndpoint(root_node, sensorData);
+  esp_matter::start(nullptr);
+
+  if(shouldDecommission){
+    esp_matter::factory_reset();
+    ESP.restart();
   }
-  if (!initializeSensors())
-    Serial.println("[SENSE] Initialization failed!");
-  // no buttons were held, do I know the time, or do I need to set it because config was changed?
-
-  if (rtcLostPower() || (!json["just_restarted"].isNull() && json["just_restarted"].as<int>() == 1))
+  if(Matter.isDeviceCommissioned())
+  //if (chip::Server::GetInstance().GetFabricTable().FabricCount() > 0)
   {
-    Serial.println("[MAIN] either detected restart after captive portal save or RTC lost power, attempt to update RTC");
+    Serial.println("[Matter] Node is already commissioned.");
+    matterCommissioned = true;
+    drawStartup();
+    setRTCFromNTP();
+  }
+  else
+  {
+    Serial.println("[Matter] Node is not commissioned yet.");
+    drawCommission();
+    delay(15000);
 
-    json["just_restarted"] = 0;
-    saveConfig();
-
-    // yes, do i have wifi creds?
-    if (json["ssid"].isNull() || json["pass"].isNull() ||
-        json["ssid"].as<String>() == "" || json["pass"].as<String>() == "")
+    if (rtcLostPower())
     {
-      // no ->  start AP mode for config
-      Serial.println("[RTC] No stored credentials to set RTC after power loss");
-      fallbackAP();
+      Serial.println("[Main] RTC lost power — waiting for Matter commissioning...");
+      while (!Matter.isDeviceCommissioned())
+        delay(1000);
+
+      Serial.println("[Matter] Commissioned — setting RTC from NTP.");
+      matterCommissioned = true;
+      setRTCFromNTP();
     }
     else
     {
-      // yes -> connect to wifi, get time from NTP to set RTC, then normal operation
-      if (!wifiManager.connectToWiFi())
-      {
-        fallbackAP();
-      }
-      // wifi has connected, get time from NTP
-      if (!timeManager.begin())
-      {
-        Serial.println("[NTP] TimeManager begin failed");
-      }
-      uint32_t hour = timeManager.getHour();
-      uint32_t minute = timeManager.getMinute();
-      uint32_t second = timeManager.getSecond();
-      uint32_t weekday = timeManager.getWeekday();
-      uint32_t day = timeManager.getDay();
-      uint32_t month = timeManager.getMonth();
-      uint32_t year = timeManager.getYear();
-      setRTCTime(hour, minute, second);
-      setRTCdate(weekday, day, month, year);
-      wifiManager.disconnect(); // for matter
+      Serial.println("[Main] RTC has valid time — continuing without Matter.");
+      // matterCommissioned remains false
     }
   }
 
-  if (MATTER)
-  {
-    node::config_t node_config;
-
-    node_t *root_node = node::create(&node_config, 
-                                     NULL, // Attribute callback (can be NULL for now)
-                                     NULL  // Identification callback
-                                     );
-
-    if (root_node) {
-        Serial.println("[Matter] Root Node created successfully.");
-    } else {
-        Serial.println("[Matter] Still failed to create Root Node!");
-    }
-    auto sensorData = std::make_shared<AirQualitySensor>();
-    matterAirQualitySensor = MatterAirQualitySensor::CreateEndpoint(root_node, sensorData);
-
-    esp_matter::start(nullptr);
-    // This may be a restart of a already commissioned Matter accessory
-    if (!Matter.isDeviceCommissioned())
-    {
-      Serial.println("Matter Node is not commissioned yet.");
-      Serial.printf("Manual pairing code: %s\r\n", Matter.getManualPairingCode().c_str());
-      Serial.printf("QR code URL: %s\r\n", Matter.getOnboardingQRCodeUrl().c_str());
-      // The device is now advertising in the background. 
-      // Do NOT wait here. Let the loop() run.
-    }
-    else
-    {
-      Serial.println("Matter Node is already commissioned.");
-    }
-  }
+  // Normal operation
   setRTCAlarms();
   updateDHT();
   updateCO2(true);
-  if (matterAirQualitySensor) {
-      matterAirQualitySensor->UpdateMeasurements();
-  }
+  if (matterCommissioned)
+    matterAirQualitySensor->UpdateMeasurements();
   delay(100);
   drawPage1();
 }
 
 void loop()
 {
-  // Maintain the 1Hz Gas Index
+  // handle late commissioning (after startup 15s timeout)
+  if (!matterCommissioned && Matter.isDeviceCommissioned())
+  {
+    Serial.println("[Matter] Late commissioning detected — enabling Matter updates.");
+    matterCommissioned = true;
+    setRTCFromNTP();
+    if (matterAirQualitySensor)
+      matterAirQualitySensor->UpdateMeasurements();
+  }
+
+  // maintain the 1Hz Gas Index
   processGasSensors();
+
+  // Periodically mirror ESP system time (SNTP-maintained) to external RTC.
+  // Non-blocking: if time is not valid yet, skip and retry next interval.
+  unsigned long nowMs = millis();
+  if (matterCommissioned && (nowMs - lastRtcSyncAttemptMs >= RTC_SYNC_INTERVAL_MS))
+  {
+    lastRtcSyncAttemptMs = nowMs;
+    if (!setRTCFromSystemTimeIfValid())
+    {
+      Serial.println("[RTC] Periodic sync skipped (system time not valid yet).");
+    }
+  }
 
   if (pageChangeRequested)
   {
@@ -147,39 +142,13 @@ void loop()
       Serial.println("[MAIN] T-10s Interrupt");
       updateDHT();
       updateCO2();
-      if (matterAirQualitySensor) {
-      matterAirQualitySensor->UpdateMeasurements();
+      if (matterCommissioned)
+      {
+        matterAirQualitySensor->UpdateMeasurements();
       }
       vocQueue.push(getVOCIndex());
       co2Queue.push(getCO2());
       noxQueue.push(getNOxIndex());
     }
-  }
-}
-
-void fallbackAP()
-{
-  Serial.println("[MAIN] Starting fallback AP...");
-  wifiManager.startAP(); // start the AP, since you held down btn1
-  webPortal.begin();     // start the captive portal
-  displayAP(wifiManager.mac);
-  handleCaptivePortal(); // infinite loop that resets ESP once config saved
-}
-
-void handleCaptivePortal()
-{
-  while (true)
-  {
-    // Handle web portal
-    webPortal.handleClient();
-
-    // Check for restart after config save
-    if (webPortal.shouldRestart())
-    {
-      Serial.println("[MAIN] Restarting...");
-      delay(1000);
-      ESP.restart();
-    }
-    delay(50);
   }
 }

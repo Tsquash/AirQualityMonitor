@@ -2,7 +2,6 @@
 #define SENSE_H 
 
 #include "../lib/Max31328RTC/src/max31328.h"
-#include <Matter.h>
 #include <esp_matter.h>
 #include <app/clusters/air-quality-server/air-quality-server.h>
 
@@ -48,5 +47,9 @@ max31328_calendar_t getRTCcal(); // returns the max date struct
 // CO2 Functions
 int getCO2();
 bool updateCO2(bool discard = false);
+
+// NTP -> Hardware RTC
+void setRTCFromNTP();
+bool setRTCFromSystemTimeIfValid();
 
 #endif

@@ -3,6 +3,7 @@
 // #include "screen.h" // TODO: add back? do i want to error on screen
 #include "utils.h"
 #include <Wire.h>
+#include <time.h>
 #include "DHT20.h"
 #include <SensirionI2CSgp41.h>
 #include <SensirionI2cScd4x.h>
@@ -86,7 +87,7 @@ bool updateDHT()
   {
   case DHT20_OK:
     tempC = DHT.getTemperature();
-    TEMP = (json["unit_c"].as<int>() == 1) ? (int)round(static_cast<double>(tempC)) : (int)round((static_cast<double>(tempC) * 1.8) + 32.0);
+    TEMP = (int)round((static_cast<double>(tempC) * 1.8) + 32.0);
     RH = (int)round(static_cast<double>(DHT.getHumidity()));
     return true;
   case DHT20_ERROR_CHECKSUM:
@@ -330,7 +331,7 @@ bool rtcLostPower()
 
 bool setRTCTime(uint32_t hour, uint32_t minute, uint32_t second)
 {
-  bool hr24 = json["hr24_enable"].as<int>() == 1;
+  // removed 12/24 hour logic, add back here
   bool isPM = hour >= 12;
   if (hour > 12)
     hour = hour - 12;
@@ -341,7 +342,7 @@ bool setRTCTime(uint32_t hour, uint32_t minute, uint32_t second)
   time.minutes = minute;
   time.hours = hour;
   time.am_pm = isPM;
-  time.mode = !hr24; // 1 = 12-hour mode
+  time.mode = 1; // 1 = 12-hour mode
   uint16_t error = RTC.set_time(time);
   if (error != 0)
   {
@@ -381,4 +382,45 @@ max31328_calendar_t getRTCcal()
   max31328_calendar_t cal;
   RTC.get_calendar(&cal);
   return cal;
+}
+
+bool setRTCFromSystemTimeIfValid()
+{
+  time_t now = time(nullptr);
+  // Consider system time valid only after SNTP has set it.
+  // 1704067200 = 2024-01-01 00:00:00 UTC
+  if (now < 1704067200)
+  {
+    return false;
+  }
+
+  struct tm timeinfo;
+  if (!localtime_r(&now, &timeinfo))
+  {
+    return false;
+  }
+
+  bool okTime = setRTCTime(timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
+  bool okDate = setRTCdate(timeinfo.tm_wday, timeinfo.tm_mday, timeinfo.tm_mon + 1, timeinfo.tm_year + 1900);
+  if (okTime && okDate)
+  {
+    Serial.println("[RTC] Hardware RTC updated from system time");
+    return true;
+  }
+  return false;
+}
+
+void setRTCFromNTP()
+{
+  if (autoConfigureTimezone())
+  {
+    struct tm timeinfo;
+    if (getLocalTime(&timeinfo, 10000))
+    {
+      setRTCTime(timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
+      setRTCdate(timeinfo.tm_wday, timeinfo.tm_mday, timeinfo.tm_mon + 1, timeinfo.tm_year + 1900);
+      Serial.println("[RTC] Hardware RTC updated from Auto-Network Time");
+    }
+    else{ Serial.println("[RTC] Get local time failed.");}
+  }
 }

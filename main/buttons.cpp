@@ -5,7 +5,6 @@
 volatile bool pageChangeRequested = false;
 volatile unsigned long lastPressTime = 0;
 const unsigned long DEBOUNCE_DELAY = 750;
-extern int refreshCounter;
 
 void IRAM_ATTR pageChangeISR() {
     unsigned long currentTime = millis();
@@ -13,7 +12,6 @@ void IRAM_ATTR pageChangeISR() {
         pageChangeRequested = true;
         lastPressTime = currentTime;
         // Force full refresh on page change to sync buffers
-        refreshCounter = 9; // next refresh will be 10th (full refresh)
     }
 }
 

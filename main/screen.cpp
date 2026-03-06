@@ -7,12 +7,14 @@
 #include <GxEPD2_BW.h>
 
 #include "myFont/RubikItalic49pt7b.h"
+#include "myFont/RubikItalic64pt7b.h"
 #include "myFont/RubikRegular12pt7b.h"
 #include "myFont/RubikRegular9pt7b.h"
 #include "myFont/RubikMedium12pt7b.h"
 #include "myFont/RubikRegular6pt7b.h"
 #include "myFont/RubikItalic9pt7b.h"
 #include "myFont/RubikRegular15pt7b.h"
+#include "myFont/RubikRegular17pt7b.h"
 #include "myFont/RubikRegular18pt7b.h"
 #include "myBitmap/bitmaps.h"
 
@@ -32,7 +34,7 @@
 
 // flag so that change page knows the current page
 bool page1 = true;
-int refreshCounter = 1;
+bool forceFull = false;
 
 // use XIAO C6 SPI bus
 SPIClass epd_spi(FSPI);
@@ -59,7 +61,7 @@ String padStart(String str) {
 void changePage()
 {
     page1 = !page1;
-    refreshCounter = 0;
+    forceFull = true;
     page1 ? drawPage1() : drawPage2();
 }
 
@@ -197,27 +199,6 @@ void screenPrint(String message){
     */
 }
 
-// TODO: display AP is sometimes called after an error. this error message should be able to be displayed below the AP info 
-void displayAP(uint8_t* mac) {
-    page1 = false;
-    display.setFullWindow();
-    display.fillScreen(GxEPD_WHITE);
-    display.setTextColor(GxEPD_BLACK);
-    display.setFont(&Rubik_Regular18pt7b);
-    display.setCursor(21,46);
-    display.printf("Config Mode");
-    display.fillRect(21, 56, 204, 2, GxEPD_BLACK);
-    display.setFont(&Rubik_Regular15pt7b);
-    display.setCursor(29, 96);
-    display.printf("Connect to WiFi SSID:");
-    display.setCursor(50, 134);
-    display.printf("AirQuality-%s\n", macLastThreeSegments(mac).c_str());
-    display.setCursor(29, 171);
-    display.printf("to configure the device.");
-    Serial.printf("[SCREEN] AP MODE AirQuality-%06X ", macLastThreeSegments(mac));
-    display.display(true);
-}
-
 void drawStartup() {
     page1 = false;
     display.setFullWindow();
@@ -234,7 +215,26 @@ void drawStartup() {
     display.setCursor(29, 152);
     display.printf("Allow 1 hour after start up");
     display.setCursor(29, 188);
-    display.printf("for readings to normalize!");
+    display.printf("for readings to normalize");
+    display.display(true);
+}
+
+void drawCommission(){
+    page1 = false;
+    display.setFullWindow();
+    display.fillScreen(GxEPD_WHITE);
+
+    display.setTextColor(GxEPD_BLACK);
+    display.setFont(&Rubik_Regular15pt7b);
+    display.setCursor(21,46);
+    display.printf("Set up your matter device");
+    display.fillRect(21, 55, 351, 2, GxEPD_BLACK);
+    display.drawBitmap(153, 68, matterQRBitmap, MATTERQR_WIDTH, MATTERQR_HEIGHT, GxEPD_BLACK);
+    display.setFont(&Rubik_Regular9pt7b);
+    display.setCursor(19, 200);
+    display.printf("Scan the QR code or use manual pairing code");
+    display.setCursor(145,221);
+    display.printf("3497-011-2332");
     display.display(true);
 }
 
@@ -244,49 +244,135 @@ void drawPage1() {
     display.fillScreen(GxEPD_WHITE);
     display.setTextColor(GxEPD_BLACK);
     int16_t x1, y1; uint16_t w, h;
+    int16_t x2, y2; uint16_t w2, h2;
     // Date
-    display.setFont(&Rubik_Regular12pt7b);
-    String dateStr = DoWs[getRTCcal().day-1] + "  " + (int)getRTCcal().month + "/" + (int)getRTCcal().date;
-    display.getTextBounds(dateStr, 0, 0, &x1, &y1, &w, &h);
-    display.setCursor((416 - w) / 2, 54);
-    display.printf("%s %02d/%02d", DoWs[getRTCcal().day-1], getRTCcal().month, getRTCcal().date);
+    display.setFont(&Rubik_Regular17pt7b);
+    String dateText = DoWs[getRTCcal().day - 1] + " " + padStart(String(getRTCcal().month)) + "/" + padStart(String(getRTCcal().date));
+    display.getTextBounds(dateText, 0, 0, &x1, &y1, &w, &h);
+    display.setCursor(((416 - w) / 2) - x1, 49);
+    display.print(dateText);
     // Time
-    display.setFont(&Rubik_Italic49pt7b);
+    display.setFont(&Rubik_Italic64pt7b);
     String timeStr = String(getRTCTime().hours) + ":" + padStart(String(getRTCTime().minutes));
     display.getTextBounds(timeStr, 0, 0, &x1, &y1, &w, &h);
-    display.setCursor((416 - w) / 2, 133);
+    display.setCursor((416 - w) / 2, 153);
     display.printf("%d:%02d", getRTCTime().hours, getRTCTime().minutes);
-    // Tem, Humidity, CO2
+    // Temp, humidity, CO2 cluster laid out from a centered left edge.
+    const int tempIconY = 171;
+    const int humidtyIconY = 171; 
+    const int co2IconY = 178;
+    const int vocIconY = 204;
+    const int noxIconY = 205;
+    const int aqIconY = 203;
+    const int textBaselineY = 190;
+    const int text2BaselineY = 221;
+    const int padAfterIcon = 6;
+    const int padBetweenGroups = 12;
+
+    String tempText = String(TEMP) + "\x7F"; // for degree symbol
+    String humidityText = String(RH) + "%";
+    String co2Text = String(CO2);
+
+    uint16_t tempTextW, humidityTextW, co2TextW, ppmTextW;
     display.setFont(&Rubik_Regular12pt7b);
-    String tempStr = String(TEMP) + "\x7F  " + RH + "%  " + CO2 + " ppm";
-    display.getTextBounds(tempStr, 0, 0, &x1, &y1, &w, &h);
-    display.setCursor(((416 - w) / 2), 161); // the minus 4 accounts for the width of the degree symbol
-    display.printf("%d\x7F  %d%%  %d ppm\n", TEMP, RH, CO2); // TODO: document degree is x7F
-    // VOC Scale
-    display.drawRoundRect(111, 175, 194, 16, 1, GxEPD_BLACK);
-    // TODO: greyscale dither scale
-    int smaller_index = ((VOC - 1.0) / (500 - 1.0)) * (187 - 1) + 1; // map 1-500 to 1-187
-    display.drawBitmap(109+smaller_index, 190, lower_index_pointer, L_POINTER_WIDTH, L_POINTER_HEIGHT, GxEPD_BLACK);
-    display.drawBitmap(112+smaller_index, 187, upper_index_pointer, U_POINTER_WIDTH, U_POINTER_HEIGHT, GxEPD_BLACK);
-    // VOC: <100, <150,  <200,  <300,  <400,  <500
-    String quality = VOC<=100 ? "Good" : VOC<=150 ? "Fair" : VOC<=200 ? "Moderate" : VOC<=300 ? "Poor" : VOC<=400 ? "Very Poor" : "Extremely Poor";
-    display.setCursor(121+smaller_index, 200);
-    display.setFont(&Rubik_Regular6pt7b);
-    display.printf("%d - %s", VOC, quality);
-    if(NOx >= WARN_NOX || VOC >= WARN_VOC || CO2 >= WARN_CO2){
-        display.drawRect(0,0, 416, 240, GxEPD_BLACK);
-        display.drawRect(1,1, 414, 238, GxEPD_BLACK);
-        display.drawRect(2,2, 412, 236, GxEPD_BLACK);
-        display.drawRect(3 ,3, 410, 234, GxEPD_BLACK);
-        display.drawRect(4, 4, 408, 232, GxEPD_BLACK);
-        display.drawRect(5, 5, 406, 230, GxEPD_BLACK);
-    }
-    bool doFull = (refreshCounter % MINUTES_PER_FULL == 0);
+    display.getTextBounds(tempText, 0, 0, &x1, &y1, &tempTextW, &h);
+    display.getTextBounds(humidityText, 0, 0, &x1, &y1, &humidityTextW, &h);
+    display.getTextBounds(co2Text, 0, 0, &x1, &y1, &co2TextW, &h);
+    display.setFont(&Rubik_Regular9pt7b);
+    display.getTextBounds("ppm", 0, 0, &x2, &y2, &ppmTextW, &h2);
+
+    int clusterWidth =
+        TEMP_WIDTH + padAfterIcon + tempTextW +
+        padBetweenGroups + HUMIDITY_WIDTH + padAfterIcon + humidityTextW +
+        padBetweenGroups + CO2_WIDTH + padAfterIcon + co2TextW +
+        padAfterIcon + ppmTextW;
+
+    int cursorX = (416 - clusterWidth) / 2;
+
+    display.drawBitmap(cursorX, tempIconY, tempBitmap, TEMP_WIDTH, TEMP_HEIGHT, GxEPD_BLACK);
+    cursorX += TEMP_WIDTH + padAfterIcon;
+    display.setFont(&Rubik_Regular12pt7b);
+    display.setCursor(cursorX, textBaselineY);
+    display.print(tempText);
+    cursorX += tempTextW + padBetweenGroups;
+
+    display.drawBitmap(cursorX, humidtyIconY, humidityBitmap, HUMIDITY_WIDTH, HUMIDITY_HEIGHT, GxEPD_BLACK);
+    cursorX += HUMIDITY_WIDTH + padAfterIcon;
+    display.setCursor(cursorX, textBaselineY);
+    display.print(humidityText);
+    cursorX += humidityTextW + padBetweenGroups;
+
+    display.drawBitmap(cursorX, co2IconY, co2Bitmap, CO2_WIDTH, CO2_HEIGHT, GxEPD_BLACK);
+    cursorX += CO2_WIDTH + padAfterIcon;
+    display.setCursor(cursorX, textBaselineY);
+    display.print(co2Text);
+    cursorX += co2TextW + padAfterIcon;
+
+    display.setFont(&Rubik_Regular9pt7b);
+    display.setCursor(cursorX, textBaselineY);
+    display.print("ppm");
+
+    String vocText = String(VOC);
+    String noxText = String(NOx);
+
+    // Mirror the Matter AQ threshold logic, but keep display code independent of Matter enums.
+    auto determineLevel = [](float value, float t0, float t1, float t2, float t3, float t4) -> uint8_t {
+        if (value <= t0) return 0; // Good
+        if (value <= t1) return 1; // Fair
+        if (value <= t2) return 2; // Moderate
+        if (value <= t3) return 3; // Poor
+        if (value <= t4) return 4; // Very Poor
+        return 5;                  // Extremely Poor
+    };
+
+    uint8_t co2Quality = determineLevel(static_cast<float>(CO2), 800, 1200, 1500, 2000, 3000);
+    uint8_t vocQuality = determineLevel(static_cast<float>(VOC), 100, 150, 200, 300, 400);
+    uint8_t noxQuality = determineLevel(static_cast<float>(NOx), 1, 5, 20, 100, 250);
+
+    uint8_t overallQuality = std::max({ co2Quality, vocQuality, noxQuality });
+
+    const char* qualityLabels[] = {
+        "Good", "Fair", "Moderate", "Poor", "Very Poor", "Bad"
+    };
+    String aqText = qualityLabels[overallQuality];
+    
+    uint16_t vocTextW, noxTextW, aqTextW;
+    display.setFont(&Rubik_Regular12pt7b);
+    display.getTextBounds(vocText, 0, 0, &x1, &y1, &vocTextW, &h);
+    display.getTextBounds(noxText, 0, 0, &x1, &y1, &noxTextW, &h);
+    display.getTextBounds(aqText, 0, 0, &x1, &y1, &aqTextW, &h);
+
+    clusterWidth =
+        VOC_WIDTH + padAfterIcon + vocTextW +
+        padBetweenGroups + NOX_WIDTH + padAfterIcon + noxTextW +
+        padBetweenGroups + AQ_WIDTH + padAfterIcon + aqTextW;
+
+    cursorX = (416 - clusterWidth) / 2;
+
+    display.drawBitmap(cursorX, vocIconY, vocBitmap, VOC_WIDTH, VOC_HEIGHT, GxEPD_BLACK);
+    cursorX += VOC_WIDTH + padAfterIcon;
+    display.setCursor(cursorX, text2BaselineY);
+    display.print(vocText);
+    cursorX += vocTextW + padBetweenGroups;
+
+    display.drawBitmap(cursorX, noxIconY, noxBitmap, NOX_WIDTH, NOX_HEIGHT, GxEPD_BLACK);
+    cursorX += NOX_WIDTH + padAfterIcon;
+    display.setCursor(cursorX, text2BaselineY);
+    display.print(noxText);
+    cursorX += noxTextW + padBetweenGroups;
+
+    display.drawBitmap(cursorX, aqIconY, aqBitmap, AQ_WIDTH, AQ_HEIGHT, GxEPD_BLACK);
+    cursorX += AQ_WIDTH + padAfterIcon;
+    display.setCursor(cursorX, text2BaselineY);
+    display.print(aqText);
+    cursorX += aqTextW + padAfterIcon;
+
+    bool doFull = forceFull || (getRTCTime().minutes == 0) || (getRTCTime().minutes == 30);
+    forceFull = false;
     display.display(!doFull);
     if (doFull) {
         display.display(true);
     }
-    refreshCounter++;
 }
 
 void drawPage2(){
@@ -299,7 +385,7 @@ void drawPage2(){
     display.setFont(&Rubik_Italic9pt7b);
     display.setCursor(4,16);
     display.printf("%02d/%02d  %d:%02d %s", getRTCcal().month, getRTCcal().date, getRTCTime().hours, getRTCTime().minutes, getRTCTime().am_pm ? "PM" : "AM");
-    String tempUnit = json["unit_c"].as<int>() == 1 ? "C" : "F";
+    String tempUnit = "F";
     String tempHumStr = String(TEMP) + tempUnit + "  " + RH + "%";
     int16_t x1, y1; uint16_t w, h;
     display.getTextBounds(tempHumStr, 0, 0, &x1, &y1, &w, &h);
@@ -314,10 +400,10 @@ void drawPage2(){
     drawGraphPoints(co2Queue, 1); 
     drawGraphPoints(vocQueue, 2); 
     drawGraphPoints(noxQueue, 3);
-    bool doFull = (refreshCounter % MINUTES_PER_FULL == 0);
+    bool doFull = forceFull || (getRTCTime().minutes == 0) || (getRTCTime().minutes == 30);
+    forceFull = false;
     display.display(!doFull);
     if (doFull) {
         display.display(true);
     }
-    refreshCounter++;
 }
