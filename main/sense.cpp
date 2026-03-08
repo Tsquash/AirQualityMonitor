@@ -355,6 +355,19 @@ bool setRTCTime(uint32_t hour, uint32_t minute, uint32_t second)
 
 bool setRTCdate(uint32_t weekday, uint32_t date, uint32_t month, uint32_t year)
 {
+  // C/POSIX tm_wday is 0..6 (Sun..Sat), while MAX31328 expects 1..7.
+  // If callers pass tm_wday directly, normalize it here.
+  if (weekday <= 6)
+  {
+    weekday += 1;
+  }
+
+  if (weekday < 1 || weekday > 7)
+  {
+    Serial.printf("[RTC] Invalid weekday value: %lu\n", static_cast<unsigned long>(weekday));
+    return false;
+  }
+
   max31328_calendar_t cal;
   cal.date = date;
   cal.month = month;
@@ -417,9 +430,17 @@ void setRTCFromNTP()
     struct tm timeinfo;
     if (getLocalTime(&timeinfo, 10000))
     {
-      setRTCTime(timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
-      setRTCdate(timeinfo.tm_wday, timeinfo.tm_mday, timeinfo.tm_mon + 1, timeinfo.tm_year + 1900);
-      Serial.println("[RTC] Hardware RTC updated from Auto-Network Time");
+      bool okTime = setRTCTime(timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
+      bool okDate = setRTCdate(timeinfo.tm_wday, timeinfo.tm_mday, timeinfo.tm_mon + 1, timeinfo.tm_year + 1900);
+      if (okTime && okDate)
+      {
+        Serial.println("[RTC] Hardware RTC updated from Auto-Network Time");
+      }
+      else
+      {
+        Serial.printf("[RTC] RTC update from Auto-Network Time failed (time=%s, date=%s)\n",
+                      okTime ? "ok" : "failed", okDate ? "ok" : "failed");
+      }
     }
     else{ Serial.println("[RTC] Get local time failed.");}
   }

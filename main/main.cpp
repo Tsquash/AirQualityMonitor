@@ -19,7 +19,6 @@ std::shared_ptr<MatterAirQualitySensor> matterAirQualitySensor; // Declare the a
 // void handleCaptivePortal();
 
 bool matterCommissioned = false; // this will probably need to be extern?
-bool shouldDecommission = false;
 unsigned long lastRtcSyncAttemptMs = 0;
 constexpr unsigned long RTC_SYNC_INTERVAL_MS = 60UL * 60UL * 1000UL; // 1 hour
 
@@ -28,15 +27,6 @@ void setup()
   Serial.begin(115200);
 
   setupButtons();
-  if (Matter.isDeviceCommissioned() && checkBootHold(BTN2, 1000UL))
-  {
-    Serial.println("[BTN2] Held at boot — decommissioning");
-    shouldDecommission = true;
-  }
-
-  initializeScreen();
-  initializeQueues();
-  initializeSensors();
 
   // Configure Matter node and start
   // Matter manages WiFi entirely through ESP-IDF's Device Layer.
@@ -50,12 +40,19 @@ void setup()
   matterAirQualitySensor = MatterAirQualitySensor::CreateEndpoint(root_node, sensorData);
   esp_matter::start(nullptr);
 
-  if(shouldDecommission){
+  bool commissionedAtBoot = Matter.isDeviceCommissioned();
+  if (commissionedAtBoot && checkBootHold(BTN2, 1000UL))
+  {
+    Serial.println("[BTN2] Held at boot on commissioned device — decommissioning");
     esp_matter::factory_reset();
     ESP.restart();
   }
-  if(Matter.isDeviceCommissioned())
-  //if (chip::Server::GetInstance().GetFabricTable().FabricCount() > 0)
+
+  initializeScreen();
+  initializeQueues();
+  initializeSensors();
+
+  if(commissionedAtBoot)
   {
     Serial.println("[Matter] Node is already commissioned.");
     matterCommissioned = true;
