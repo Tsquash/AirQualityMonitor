@@ -39,6 +39,7 @@ void setup()
   auto sensorData = std::make_shared<AirQualitySensor>();
   matterAirQualitySensor = MatterAirQualitySensor::CreateEndpoint(root_node, sensorData);
   esp_matter::start(nullptr);
+  // Matter.begin();
 
   bool commissionedAtBoot = Matter.isDeviceCommissioned();
   if (commissionedAtBoot && checkBootHold(BTN2, 1000UL))
