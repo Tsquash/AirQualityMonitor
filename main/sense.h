@@ -19,6 +19,8 @@ extern int CO2;
 extern int32_t VOC;
 extern int32_t NOx;
 
+uint8_t getOverallAirQuality(); // Matter enum: Good=1 through ExtremelyPoor=6
+
 // DHT Functions
 bool updateDHT();
 double getTemp();

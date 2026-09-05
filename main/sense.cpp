@@ -1,3 +1,5 @@
+#include "pm_link.h"
+#include <algorithm>
 #include <Arduino.h>
 #include "sense.h"
 // #include "screen.h" // TODO: add back? do i want to error on screen
@@ -444,4 +446,22 @@ void setRTCFromNTP()
     }
     else{ Serial.println("[RTC] Get local time failed.");}
   }
+}
+// Shared by the Matter attribute and the local display.
+uint8_t getOverallAirQuality() {
+    auto level = [](float value, int a, int b, int c, int d, int e) -> uint8_t {
+        if (value <= a) return 1;
+        if (value <= b) return 2;
+        if (value <= c) return 3;
+        if (value <= d) return 4;
+        if (value <= e) return 5;
+        return 6;
+    };
+    // PM1 uses the PM2.5 bands by project convention, not a published PM1 AQI.
+    return std::max({level(CO2, 800, 1200, 1500, 2000, 3000),
+                     level(VOC, 100, 150, 200, 300, 400),
+                     level(NOx, 1, 5, 20, 100, 250),
+                     level(remotePM.pm1, 9, 35, 55, 125, 225),
+                     level(remotePM.pm25, 9, 35, 55, 125, 225),
+                     level(remotePM.pm10, 54, 154, 254, 354, 424)});
 }

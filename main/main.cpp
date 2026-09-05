@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include "sense.h"                     // rtc and sensors (I2C handling)
 #include "screen.h"                    // eink
+#include "pm_link.h"
 #include "buttons.h"                   // button handling
 #include "utils.h"                     // file management helpers
 //#include "wifi_manager.h"              // connecting to wifi
@@ -27,6 +28,9 @@ void setup()
   Serial.begin(115200);
 
   setupButtons();
+  bool resetAtBoot = digitalRead(BTN2) == LOW && checkBootHold(BTN2, 1000UL);
+  bool pairAtBoot = !resetAtBoot && digitalRead(BTN1) == LOW && checkBootHold(BTN1, 1000UL);
+  pageChangeRequested = false;
 
   // Configure Matter node and start
   // Matter manages WiFi entirely through ESP-IDF's Device Layer.
@@ -38,18 +42,40 @@ void setup()
   root_node ? Serial.println("[Matter] Root Node created successfully.") : Serial.println("[Matter] Failed to create Root Node!");
   auto sensorData = std::make_shared<AirQualitySensor>();
   matterAirQualitySensor = MatterAirQualitySensor::CreateEndpoint(root_node, sensorData);
+  if (!matterAirQualitySensor) {
+    Serial.println("[Matter] Endpoint creation failed");
+    while (true) delay(1000);
+  }
   esp_matter::start(nullptr);
   // Matter.begin();
 
   bool commissionedAtBoot = Matter.isDeviceCommissioned();
-  if (commissionedAtBoot && checkBootHold(BTN2, 1000UL))
+  if (commissionedAtBoot && resetAtBoot)
   {
     Serial.println("[BTN2] Held at boot on commissioned device — decommissioning");
+    clearPMLink();
     esp_matter::factory_reset();
-    ESP.restart();
+    while (true) delay(1000); // Factory reset restarts only after NVS is erased.
   }
 
+  bool pairPM = commissionedAtBoot && pairAtBoot;
+  pageChangeRequested = false;
   initializeScreen();
+  if (commissionedAtBoot) {
+    initializePMLink(pairPM);
+    if (pairPM) {
+      screenPrint("Pairing with PM...");
+      uint32_t started = millis();
+      while (!pmLinkPaired() && millis() - started < 120000) {
+        processPMLink(false); // BLE only; sensors/RTC are initialized below.
+        delay(10);
+      }
+      finishPMPairing();
+      screenPrint(pmLinkPaired() ? "PM pairing successful" : "PM pairing timed out");
+      delay(4000);
+      pageChangeRequested = false;
+    }
+  }
   initializeQueues();
   initializeSensors();
 
@@ -74,6 +100,7 @@ void setup()
 
       Serial.println("[Matter] Commissioned — setting RTC from NTP.");
       matterCommissioned = true;
+      initializePMLink(false);
       setRTCFromNTP();
     }
     else
@@ -100,10 +127,13 @@ void loop()
   {
     Serial.println("[Matter] Late commissioning detected — enabling Matter updates.");
     matterCommissioned = true;
+    initializePMLink(false);
     setRTCFromNTP();
     if (matterAirQualitySensor)
       matterAirQualitySensor->UpdateMeasurements();
   }
+
+  processPMLink();
 
   // maintain the 1Hz Gas Index
   processGasSensors();
@@ -140,6 +170,7 @@ void loop()
       Serial.println("[MAIN] T-10s Interrupt");
       updateDHT();
       updateCO2();
+      finishPMMinute();
       if (matterCommissioned)
       {
         matterAirQualitySensor->UpdateMeasurements();

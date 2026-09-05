@@ -184,19 +184,14 @@ void drawGraphPoints(DataQueue q, uint8_t pos) {
     }
 }
 
-void screenPrint(String message){
-    page1 = false;
-    // TODO: Test this functionality
-    /*
-    Serial.printf("[SCREEN] test");
-    display.clearScreen(); 
+void screenPrint(String message) {
+    display.setFullWindow();
     display.fillScreen(GxEPD_WHITE);
     display.setFont(&Rubik_Regular12pt7b);
     display.setTextColor(GxEPD_BLACK);
-    display.setCursor(50, 50);
+    display.setCursor(21, 90);
     display.print(message);
-    display.display();
-    */
+    display.display(false);
 }
 
 void drawStartup() {
@@ -315,21 +310,7 @@ void drawPage1() {
     String vocText = String(VOC);
     String noxText = String(NOx);
 
-    // Mirror the Matter AQ threshold logic, but keep display code independent of Matter enums.
-    auto determineLevel = [](float value, float t0, float t1, float t2, float t3, float t4) -> uint8_t {
-        if (value <= t0) return 0; // Good
-        if (value <= t1) return 1; // Fair
-        if (value <= t2) return 2; // Moderate
-        if (value <= t3) return 3; // Poor
-        if (value <= t4) return 4; // Very Poor
-        return 5;                  // Extremely Poor
-    };
-
-    uint8_t co2Quality = determineLevel(static_cast<float>(CO2), 800, 1200, 1500, 2000, 3000);
-    uint8_t vocQuality = determineLevel(static_cast<float>(VOC), 100, 150, 200, 300, 400);
-    uint8_t noxQuality = determineLevel(static_cast<float>(NOx), 1, 5, 20, 100, 250);
-
-    uint8_t overallQuality = std::max({ co2Quality, vocQuality, noxQuality });
+    uint8_t overallQuality = getOverallAirQuality() - 1;
 
     const char* qualityLabels[] = {
         "Good", "Fair", "Moderate", "Poor", "Very Poor", "Bad"

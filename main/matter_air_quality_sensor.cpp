@@ -1,4 +1,5 @@
 #include "sense.h"
+#include "pm_link.h"
 #include "matter_air_quality_sensor.h"
 #include <platform/CHIPDeviceLayer.h>
 
@@ -28,6 +29,15 @@ std::shared_ptr<MatterAirQualitySensor> MatterAirQualitySensor::CreateEndpoint(
         log_e("Failed to create Air Quality endpoint!");
         return nullptr;
     }
+
+    // Advertise every AirQuality enum value used by our six-band calculation.
+    cluster_t *quality_cluster = cluster::get(endpoint, AirQuality::Id);
+    // This SDK's feature helper declarations do not match their linked names.
+    // These four bits enable Fair, Moderate, VeryPoor, and ExtremelyPoor.
+    attribute_t *quality_features = attribute::get(quality_cluster, Globals::Attributes::FeatureMap::Id);
+    esp_matter_attr_val_t quality_feature_value = esp_matter_uint32(0x0F);
+    if (!quality_features || attribute::set_val(quality_features, &quality_feature_value) != ESP_OK)
+        return nullptr;
 
     // 2. Add Device Types
     endpoint::add_device_type(endpoint, 0x0302, 1); // Temperature Sensor
@@ -129,6 +139,39 @@ std::shared_ptr<MatterAirQualitySensor> MatterAirQualitySensor::CreateEndpoint(
     attribute::create(nox_cluster, NitrogenDioxideConcentrationMeasurement::Attributes::MeasurementMedium::Id,
                       ATTRIBUTE_FLAG_NULLABLE, esp_matter_uint8(0)); // air
 
+    // PM1 in ug/m3, numeric measurement only.
+    pm1_concentration_measurement::config_t pm1_config;
+    cluster_t *pm1_cluster = pm1_concentration_measurement::create(endpoint, &pm1_config, CLUSTER_FLAG_SERVER);
+    pm1_concentration_measurement::feature::numeric_measurement::config_t pm1_numeric;
+    pm1_numeric.measured_value = 0.0f;
+    pm1_numeric.min_measured_value = 0.0f;
+    pm1_numeric.max_measured_value = 1000.0f;
+    pm1_numeric.measurement_unit = 4; // ug/m3; measurement medium defaults to air
+    if (!pm1_cluster || pm1_concentration_measurement::feature::numeric_measurement::add(pm1_cluster, &pm1_numeric) != ESP_OK)
+        return nullptr;
+
+    // PM25 in ug/m3, numeric measurement only.
+    pm25_concentration_measurement::config_t pm25_config;
+    cluster_t *pm25_cluster = pm25_concentration_measurement::create(endpoint, &pm25_config, CLUSTER_FLAG_SERVER);
+    pm25_concentration_measurement::feature::numeric_measurement::config_t pm25_numeric;
+    pm25_numeric.measured_value = 0.0f;
+    pm25_numeric.min_measured_value = 0.0f;
+    pm25_numeric.max_measured_value = 1000.0f;
+    pm25_numeric.measurement_unit = 4; // ug/m3; measurement medium defaults to air
+    if (!pm25_cluster || pm25_concentration_measurement::feature::numeric_measurement::add(pm25_cluster, &pm25_numeric) != ESP_OK)
+        return nullptr;
+
+    // PM10 in ug/m3, numeric measurement only.
+    pm10_concentration_measurement::config_t pm10_config;
+    cluster_t *pm10_cluster = pm10_concentration_measurement::create(endpoint, &pm10_config, CLUSTER_FLAG_SERVER);
+    pm10_concentration_measurement::feature::numeric_measurement::config_t pm10_numeric;
+    pm10_numeric.measured_value = 0.0f;
+    pm10_numeric.min_measured_value = 0.0f;
+    pm10_numeric.max_measured_value = 1000.0f;
+    pm10_numeric.measurement_unit = 4; // ug/m3; measurement medium defaults to air
+    if (!pm10_cluster || pm10_concentration_measurement::feature::numeric_measurement::add(pm10_cluster, &pm10_numeric) != ESP_OK)
+        return nullptr;
+
     return std::make_shared<MatterAirQualitySensor>(endpoint, airQualitySensor);
 }
 
@@ -165,30 +208,11 @@ void MatterAirQualitySensor::UpdateMeasurements() {
                     NitrogenDioxideConcentrationMeasurement::Attributes::MeasuredValue::Id,
                     nox);
 
-    
-    //      good, fair, moderate, poor, very poor, extremely poor
-    // CO2: <800, <1200, <1500, <2000, <3000, 3000+ 
-    // VOC: <100, <150,  <200,  <300,  <400,  <500
-    // NO2: <1,   <5,    <20,   <100,  <250,  <500
+    UpdateAttribute(Pm1ConcentrationMeasurement::Id, Pm1ConcentrationMeasurement::Attributes::MeasuredValue::Id, static_cast<float>(remotePM.pm1));
+    UpdateAttribute(Pm25ConcentrationMeasurement::Id, Pm25ConcentrationMeasurement::Attributes::MeasuredValue::Id, static_cast<float>(remotePM.pm25));
+    UpdateAttribute(Pm10ConcentrationMeasurement::Id, Pm10ConcentrationMeasurement::Attributes::MeasuredValue::Id, static_cast<float>(remotePM.pm10));
+    UpdateAttribute(AirQuality::Id, AirQuality::Attributes::AirQuality::Id, getOverallAirQuality());
 
-    using AirQualityEnum = AirQuality::AirQualityEnum;
-
-    auto determineLevel = [](float value, float t0, float t1, float t2, float t3, float t4) -> AirQualityEnum {
-        if (value <= t0) return AirQualityEnum::kGood;
-        if (value <= t1) return AirQualityEnum::kFair;
-        if (value <= t2) return AirQualityEnum::kModerate;
-        if (value <= t3) return AirQualityEnum::kPoor;
-        if (value <= t4) return AirQualityEnum::kVeryPoor;
-        return AirQualityEnum::kExtremelyPoor;
-    };
-
-    AirQualityEnum co2Quality = determineLevel(co2, 800, 1200, 1500, 2000, 3000);
-    AirQualityEnum vocQuality = determineLevel(voc, 100, 150, 200, 300, 400);
-    AirQualityEnum noxQuality = determineLevel(nox, 1, 5, 20, 100, 250);
-
-    AirQualityEnum overallQuality = std::max({ co2Quality, vocQuality, noxQuality });
-
-    UpdateAttribute(AirQuality::Id, AirQuality::Attributes::AirQuality::Id, static_cast<uint8_t>(overallQuality));
 }
 
 // --- Helper Implementations ---
@@ -201,7 +225,8 @@ void MatterAirQualitySensor::UpdateAttribute(uint32_t clusterId, uint32_t attrib
     
     // LOCK
     chip::DeviceLayer::PlatformMgr().LockChipStack();
-    attribute::update(endpoint::get_id(m_endpoint), clusterId, attributeId, &val);
+    esp_err_t err = attribute::update(endpoint::get_id(m_endpoint), clusterId, attributeId, &val);
+    if (err != ESP_OK) log_e("Matter update cluster=0x%lx attribute=0x%lx failed: %s", (unsigned long)clusterId, (unsigned long)attributeId, esp_err_to_name(err));
     chip::DeviceLayer::PlatformMgr().UnlockChipStack();
     // UNLOCK
 }
@@ -210,7 +235,8 @@ void MatterAirQualitySensor::UpdateAttribute(uint32_t clusterId, uint32_t attrib
     esp_matter_attr_val_t val = esp_matter_uint16(value);
     
     chip::DeviceLayer::PlatformMgr().LockChipStack();
-    attribute::update(endpoint::get_id(m_endpoint), clusterId, attributeId, &val);
+    esp_err_t err = attribute::update(endpoint::get_id(m_endpoint), clusterId, attributeId, &val);
+    if (err != ESP_OK) log_e("Matter update cluster=0x%lx attribute=0x%lx failed: %s", (unsigned long)clusterId, (unsigned long)attributeId, esp_err_to_name(err));
     chip::DeviceLayer::PlatformMgr().UnlockChipStack();
 }
 
@@ -218,7 +244,8 @@ void MatterAirQualitySensor::UpdateAttribute(uint32_t clusterId, uint32_t attrib
     esp_matter_attr_val_t val = esp_matter_int16(value);
     
     chip::DeviceLayer::PlatformMgr().LockChipStack();
-    attribute::update(endpoint::get_id(m_endpoint), clusterId, attributeId, &val);
+    esp_err_t err = attribute::update(endpoint::get_id(m_endpoint), clusterId, attributeId, &val);
+    if (err != ESP_OK) log_e("Matter update cluster=0x%lx attribute=0x%lx failed: %s", (unsigned long)clusterId, (unsigned long)attributeId, esp_err_to_name(err));
     chip::DeviceLayer::PlatformMgr().UnlockChipStack();
 }
 
@@ -226,6 +253,7 @@ void MatterAirQualitySensor::UpdateAttribute(uint32_t clusterId, uint32_t attrib
     esp_matter_attr_val_t val = esp_matter_uint8(value);
     
     chip::DeviceLayer::PlatformMgr().LockChipStack();
-    attribute::update(endpoint::get_id(m_endpoint), clusterId, attributeId, &val);
+    esp_err_t err = attribute::update(endpoint::get_id(m_endpoint), clusterId, attributeId, &val);
+    if (err != ESP_OK) log_e("Matter update cluster=0x%lx attribute=0x%lx failed: %s", (unsigned long)clusterId, (unsigned long)attributeId, esp_err_to_name(err));
     chip::DeviceLayer::PlatformMgr().UnlockChipStack();
 }
