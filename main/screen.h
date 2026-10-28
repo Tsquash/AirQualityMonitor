@@ -8,17 +8,18 @@ extern DataQueue vocQueue;
 extern DataQueue co2Queue;
 extern DataQueue noxQueue;
 
+enum class PairingDisplayStatus {
+    Pairing,
+    Paired,
+    TimedOut,
+};
+
 void initializeScreen();
-void initializeQueues();
-void screenPrint(String message);
+void drawCenteredMessage(const char* message);
+void drawPairingStatus(PairingDisplayStatus status);
 void changePage();
 void drawPage1();
 void drawPage2();
 void drawCommission();
 void drawStartup();
-/*
-bool updateMinute(); // updates the minute value and sets air quality vars
-void updateHour(); // called by update minute
-void updateDay(); // called by update hour
-*/
 #endif

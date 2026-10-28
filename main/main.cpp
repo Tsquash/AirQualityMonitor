@@ -3,25 +3,35 @@
 #include "screen.h"                    // eink
 #include "pm_link.h"
 #include "buttons.h"                   // button handling
-#include "utils.h"                     // file management helpers
-//#include "wifi_manager.h"              // connecting to wifi
-//#include "web_portal.h"                // captive portal
-// #include "time_manager.h"              // all things NTP
 #include <Matter.h>
-#include "matter_air_quality_sensor.h" // Include the new air quality sensor header
+#include <nvs_flash.h>
+#include "matter_air_quality_sensor.h"
 
-// WiFiManager wifiManager;
-// WebPortal webPortal;
-// TimeManager timeManager;
-// List of Matter Endpoints for this Node
-std::shared_ptr<MatterAirQualitySensor> matterAirQualitySensor; // Declare the air quality sensor
-
-// void fallbackAP();
-// void handleCaptivePortal();
-
-bool matterCommissioned = false; // this will probably need to be extern?
+std::shared_ptr<MatterAirQualitySensor> matterAirQualitySensor;
+bool matterCommissioned = false;
 unsigned long lastRtcSyncAttemptMs = 0;
 constexpr unsigned long RTC_SYNC_INTERVAL_MS = 60UL * 60UL * 1000UL; // 1 hour
+
+[[noreturn]] void factoryResetAllNvs()
+{
+  Serial.println("[RESET] Erasing the complete NVS partition, including Matter and PM pairing data");
+
+  esp_err_t err = nvs_flash_deinit();
+  if (err != ESP_OK && err != ESP_ERR_NVS_NOT_INITIALIZED)
+    Serial.printf("[RESET] NVS deinitialization warning: %s\n", esp_err_to_name(err));
+
+  err = nvs_flash_erase();
+  if (err != ESP_OK)
+  {
+    Serial.printf("[RESET] Complete NVS erase failed: %s\n", esp_err_to_name(err));
+    while (true) delay(1000);
+  }
+
+  Serial.println("[RESET] NVS erased; Matter is decommissioned. Restarting.");
+  delay(100);
+  ESP.restart();
+  while (true) delay(1000);
+}
 
 void setup()
 {
@@ -32,6 +42,11 @@ void setup()
   bool pairAtBoot = !resetAtBoot && digitalRead(BTN1) == LOW && checkBootHold(BTN1, 1000UL);
   pageChangeRequested = false;
 
+  if (resetAtBoot)
+    factoryResetAllNvs();
+
+  initializeScreen();
+
   // Configure Matter node and start
   // Matter manages WiFi entirely through ESP-IDF's Device Layer.
   // Do NOT call Arduino WiFi functions (WiFi.begin, WiFi.disconnect, etc.)
@@ -39,45 +54,52 @@ void setup()
   // in a desynced state where WiFi.status() never reflects reality.
   node::config_t node_config;
   node_t *root_node = node::create(&node_config, NULL, NULL);
-  root_node ? Serial.println("[Matter] Root Node created successfully.") : Serial.println("[Matter] Failed to create Root Node!");
-  auto sensorData = std::make_shared<AirQualitySensor>();
-  matterAirQualitySensor = MatterAirQualitySensor::CreateEndpoint(root_node, sensorData);
-  if (!matterAirQualitySensor) {
-    Serial.println("[Matter] Endpoint creation failed");
+  if (!root_node)
+  {
+    Serial.println("[Matter] Root node creation failed.");
+    drawCenteredMessage("Matter endpoint creation failed.");
     while (true) delay(1000);
   }
-  esp_matter::start(nullptr);
-  // Matter.begin();
+  Serial.println("[Matter] Root node created successfully.");
 
-  bool commissionedAtBoot = Matter.isDeviceCommissioned();
-  if (commissionedAtBoot && resetAtBoot)
+  auto sensorData = std::make_shared<AirQualitySensor>();
+  matterAirQualitySensor = MatterAirQualitySensor::CreateEndpoint(root_node, sensorData);
+  if (!matterAirQualitySensor)
   {
-    Serial.println("[BTN2] Held at boot on commissioned device — decommissioning");
-    clearPMLink();
-    esp_matter::factory_reset();
-    while (true) delay(1000); // Factory reset restarts only after NVS is erased.
+    Serial.println("[Matter] Endpoint creation failed.");
+    drawCenteredMessage("Matter endpoint creation failed.");
+    while (true) delay(1000);
   }
 
+  esp_err_t matterStartResult = esp_matter::start(nullptr);
+  if (matterStartResult != ESP_OK)
+  {
+    Serial.printf("[Matter] Startup failed: %s\n", esp_err_to_name(matterStartResult));
+    drawCenteredMessage("Matter startup failed.");
+    while (true) delay(1000);
+  }
+
+  bool commissionedAtBoot = Matter.isDeviceCommissioned();
   bool pairPM = commissionedAtBoot && pairAtBoot;
   pageChangeRequested = false;
-  initializeScreen();
   if (commissionedAtBoot) {
     initializePMLink(pairPM);
     if (pairPM) {
-      screenPrint("Pairing with PM...");
+      drawPairingStatus(PairingDisplayStatus::Pairing);
       uint32_t started = millis();
       while (!pmLinkPaired() && millis() - started < 120000) {
         processPMLink(false); // BLE only; sensors/RTC are initialized below.
         delay(10);
       }
       finishPMPairing();
-      screenPrint(pmLinkPaired() ? "PM pairing successful" : "PM pairing timed out");
+      drawPairingStatus(pmLinkPaired() ? PairingDisplayStatus::Paired
+                                       : PairingDisplayStatus::TimedOut);
       delay(4000);
       pageChangeRequested = false;
     }
   }
-  initializeQueues();
-  initializeSensors();
+  if (!initializeSensors())
+    Serial.println("[Sensors] Initialization failed; restart the device after checking sensor power and wiring.");
 
   if(commissionedAtBoot)
   {
@@ -111,7 +133,8 @@ void setup()
   }
 
   // Normal operation
-  setRTCAlarms();
+  if (!setRTCAlarms())
+    Serial.println("[RTC] Alarm initialization failed; scheduled measurements will not run.");
   updateDHT();
   updateCO2(true);
   if (matterCommissioned)
@@ -144,10 +167,8 @@ void loop()
   if (matterCommissioned && (nowMs - lastRtcSyncAttemptMs >= RTC_SYNC_INTERVAL_MS))
   {
     lastRtcSyncAttemptMs = nowMs;
-    if (!setRTCFromSystemTimeIfValid())
-    {
-      Serial.println("[RTC] Periodic sync skipped (system time not valid yet).");
-    }
+    // Re-query the current UTC offset so DST changes apply without a reboot.
+    setRTCFromNTP();
   }
 
   if (pageChangeRequested)

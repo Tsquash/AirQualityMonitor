@@ -67,9 +67,19 @@ bool autoConfigureTimezone() {
 
   // Response is plain text: "+HHMM" or "-HHMM" (e.g. "-0600")
   String offset_str = String(buffer).substring(0, 5);
+  if ((offset_str[0] != '+' && offset_str[0] != '-') ||
+      !isDigit(offset_str[1]) || !isDigit(offset_str[2]) ||
+      !isDigit(offset_str[3]) || !isDigit(offset_str[4])) {
+    Serial.printf("[Time] Invalid UTC offset response: %s\n", offset_str.c_str());
+    return false;
+  }
   int sign = (offset_str[0] == '-') ? -1 : 1;
   int hours = offset_str.substring(1, 3).toInt();
   int minutes = offset_str.substring(3, 5).toInt();
+  if (hours > 14 || minutes > 59) {
+    Serial.printf("[Time] UTC offset out of range: %s\n", offset_str.c_str());
+    return false;
+  }
   int total_offset = sign * (hours * 3600 + minutes * 60);
 
   Serial.printf("[Time] Auto-detected UTC offset: %s (%d seconds)\n", offset_str.c_str(), total_offset);

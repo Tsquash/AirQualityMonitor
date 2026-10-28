@@ -2,15 +2,8 @@
 #define SENSE_H 
 
 #include "../lib/Max31328RTC/src/max31328.h"
-#include <esp_matter.h>
-#include <app/clusters/air-quality-server/air-quality-server.h>
-
-#define WARN_CO2 2000
-#define WARN_VOC 120
-#define WARN_NOX 2
 
 bool initializeSensors();
-void initGasAlgorithms(); // Setup gas algorithm parameters
 
 extern float tempC;
 extern int TEMP;
@@ -23,16 +16,12 @@ uint8_t getOverallAirQuality(); // Matter enum: Good=1 through ExtremelyPoor=6
 
 // DHT Functions
 bool updateDHT();
-double getTemp();
-double getHumidity();
 
 void printSensirionError(uint16_t error, const char* functionName);
 // SGP41 Functions
-void initGasAlgorithms();
 void processGasSensors();
 int32_t getVOCIndex();
 int32_t getNOxIndex();
-void printSGP();
 
 // RTC Functions
 extern volatile bool rtc_interrupt_occured;
@@ -52,6 +41,5 @@ bool updateCO2(bool discard = false);
 
 // NTP -> Hardware RTC
 void setRTCFromNTP();
-bool setRTCFromSystemTimeIfValid();
 
 #endif

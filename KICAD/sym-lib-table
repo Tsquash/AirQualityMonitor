@@ -1,0 +1,12 @@
+(sym_lib_table
+  (version 7)
+  (lib (name "AQ-CO2")(type "KiCad")(uri "/Users/caleblightfoot/Documents/Projects/AirQualityMonitor/CO2/2025-11-18_05-40-05.kicad_sym")(options "")(descr ""))
+  (lib (name "AQ-RTC")(type "KiCad")(uri "/Users/caleblightfoot/Documents/Projects/AirQualityMonitor/RTC/2025-11-18_05-41-47.kicad_sym")(options "")(descr ""))
+  (lib (name "AQ-VOC")(type "KiCad")(uri "/Users/caleblightfoot/Documents/Projects/AirQualityMonitor/VOC/SGP41-D-R4.kicad_sym")(options "")(descr ""))
+  (lib (name "AQ-C6")(type "KiCad")(uri "/Users/caleblightfoot/Documents/Projects/AirQualityMonitor/Seeed_Studio_XIAO_Series.kicad_sym")(options "")(descr ""))
+  (lib (name "AQ-BAT")(type "KiCad")(uri "/Users/caleblightfoot/Documents/Projects/AirQualityMonitor/BAT_HLD_001/BAT-HLD-001.kicad_sym")(options "")(descr ""))
+  (lib (name "AQ-USB")(type "KiCad")(uri "/Users/caleblightfoot/Documents/Projects/AirQualityMonitor/USB-C/UJC-H-G-SMT-2-P6-TR.kicad_sym")(options "")(descr ""))
+  (lib (name "AQ-FH34SRJ-24S-0.5SH_50_")(type "KiCad")(uri "/Users/caleblightfoot/Documents/Projects/AirQualityMonitor/FH34SRJ-24S-0.5SH_50_/FH34SRJ-24S-0.5SH_50_.kicad_sym")(options "")(descr ""))
+  (lib (name "AQ-UJ20-C-V-C-1-SMT-TR")(type "KiCad")(uri "/Users/caleblightfoot/Documents/Projects/AirQualityMonitor/UJ20_C_V_C_1_SMT_TR/UJ20-C-V-C-1-SMT-TR.kicad_sym")(options "")(descr ""))
+  (lib (name "TL3330AF260QG")(type "KiCad")(uri "/Users/caleblightfoot/Documents/Projects/AirQualityMonitor/TL3330AF260QG /TL3330AF260QG.kicad_sym")(options "")(descr ""))
+)

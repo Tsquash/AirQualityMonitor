@@ -47,35 +47,32 @@ std::shared_ptr<MatterAirQualitySensor> MatterAirQualitySensor::CreateEndpoint(
     // TEMPERATURE
     // -------------------------------------------------------------------------
     temperature_measurement::config_t temp_config;
+    temp_config.measured_value = nullable<int16_t>(0);
+    temp_config.min_measured_value = nullable<int16_t>(-4000);
+    temp_config.max_measured_value = nullable<int16_t>(8500);
     cluster_t *temp_cluster = temperature_measurement::create(endpoint, &temp_config, CLUSTER_FLAG_SERVER);
-    
-    // Min/Max/MeasuredValue
-    attribute::create(temp_cluster, TemperatureMeasurement::Attributes::MinMeasuredValue::Id, ATTRIBUTE_FLAG_NULLABLE, esp_matter_int16(-4000));
-    attribute::create(temp_cluster, TemperatureMeasurement::Attributes::MaxMeasuredValue::Id, ATTRIBUTE_FLAG_NULLABLE, esp_matter_int16(8500));
-    attribute::create(temp_cluster, TemperatureMeasurement::Attributes::MeasuredValue::Id, ATTRIBUTE_FLAG_NULLABLE, esp_matter_int16(0));
+    if (!temp_cluster)
+        return nullptr;
 
     // -------------------------------------------------------------------------
     // HUMIDITY
     // -------------------------------------------------------------------------
     relative_humidity_measurement::config_t humid_config;
+    humid_config.measured_value = nullable<uint16_t>(0);
+    humid_config.min_measured_value = nullable<uint16_t>(0);
+    humid_config.max_measured_value = nullable<uint16_t>(10000);
     cluster_t *humid_cluster = relative_humidity_measurement::create(endpoint, &humid_config, CLUSTER_FLAG_SERVER);
-    
-    // Min/Max/MeasuredValue
-    attribute::create(humid_cluster, RelativeHumidityMeasurement::Attributes::MinMeasuredValue::Id, ATTRIBUTE_FLAG_NULLABLE, esp_matter_uint16(0));
-    attribute::create(humid_cluster, RelativeHumidityMeasurement::Attributes::MaxMeasuredValue::Id, ATTRIBUTE_FLAG_NULLABLE, esp_matter_uint16(10000));
-    attribute::create(humid_cluster, RelativeHumidityMeasurement::Attributes::MeasuredValue::Id, ATTRIBUTE_FLAG_NULLABLE, esp_matter_uint16(0));
+    if (!humid_cluster)
+        return nullptr;
 
     // -------------------------------------------------------------------------
     // CO2 (Concentration Measurement)
     // -------------------------------------------------------------------------
     carbon_dioxide_concentration_measurement::config_t co2_config;
-    // REMOVED: co2_config.feature_map = 0x0F; (This caused the error)
 
     cluster_t *co2_cluster = carbon_dioxide_concentration_measurement::create(endpoint, &co2_config, CLUSTER_FLAG_SERVER);
-    
-    // FIX: Manually update the Feature Map Attribute (ID 0xFFFC)
-    // We want to enable NumericMeasurement (Bit 0), LevelIndication (Bit 1), Medium (Bit 2), Critical (Bit 3) -> 0x0F
-    // We get the attribute pointer and set the value directly.
+
+    // Enable NumericMeasurement, LevelIndication, MediumLevel, and CriticalLevel.
     attribute_t *featureMapAttr = attribute::get(co2_cluster, 0xFFFC); // 0xFFFC is the standard FeatureMap ID
     if (featureMapAttr) {
         esp_matter_attr_val_t val = esp_matter_uint32(0x0F);
@@ -215,20 +212,13 @@ void MatterAirQualitySensor::UpdateMeasurements() {
 
 }
 
-// --- Helper Implementations ---
-
-// FIX 3: Use esp_matter::endpoint::get_id() instead of m_endpoint->get_endpoint_id()
-// m_endpoint is a C-struct/int pointer, not a C++ class with methods.
-
 void MatterAirQualitySensor::UpdateAttribute(uint32_t clusterId, uint32_t attributeId, float value) {
     esp_matter_attr_val_t val = esp_matter_float(value);
     
-    // LOCK
     chip::DeviceLayer::PlatformMgr().LockChipStack();
     esp_err_t err = attribute::update(endpoint::get_id(m_endpoint), clusterId, attributeId, &val);
     if (err != ESP_OK) log_e("Matter update cluster=0x%lx attribute=0x%lx failed: %s", (unsigned long)clusterId, (unsigned long)attributeId, esp_err_to_name(err));
     chip::DeviceLayer::PlatformMgr().UnlockChipStack();
-    // UNLOCK
 }
 
 void MatterAirQualitySensor::UpdateAttribute(uint32_t clusterId, uint32_t attributeId, uint16_t value) {

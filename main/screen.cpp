@@ -2,21 +2,19 @@
 #include <SPI.h>
 #include "screen.h"
 #include "sense.h" 
-#include "utils.h"
 
 #include <GxEPD2_BW.h>
 
-#include "myFont/RubikItalic49pt7b.h"
 #include "myFont/RubikItalic64pt7b.h"
 #include "myFont/RubikRegular12pt7b.h"
 #include "myFont/RubikRegular9pt7b.h"
-#include "myFont/RubikMedium12pt7b.h"
 #include "myFont/RubikRegular6pt7b.h"
 #include "myFont/RubikItalic9pt7b.h"
 #include "myFont/RubikRegular15pt7b.h"
 #include "myFont/RubikRegular17pt7b.h"
 #include "myFont/RubikRegular18pt7b.h"
 #include "myBitmap/bitmaps.h"
+#include "myBitmap/pairing_bitmaps.h"
 
 #define GxEPD2_DISPLAY_CLASS GxEPD2_BW
 #define GxEPD2_DRIVER_CLASS GxEPD2_370_GDEY037T03 // GDEY037T03 240x416, UC8253
@@ -26,11 +24,7 @@
 #define EPD_MOSI  18
 #define EPD_MISO -1 // not reading from screen
 #define EPD_BUSY -1 // can set to -1 to not use a pin (will wait a fixed delay)
-#define SRAM_CS -1 // use internal RAM
 #define EPD_RESET 20  // can set to -1 and share with microcontroller Reset!
-#define EPD_SPI &epd_spi // primary SPI
-
-#define MINUTES_PER_FULL 30
 
 // flag so that change page knows the current page
 bool page1 = true;
@@ -72,14 +66,6 @@ void initializeScreen(){
     display.setRotation(3);
     display.fillRect(0,0,416,240, GxEPD_WHITE);
     display.display();
-}
-
-void initializeQueues() {
-    for(int i = 0; i < 60; i++) {
-        vocQueue.push(0);
-        co2Queue.push(0);
-        noxQueue.push(0);
-    }
 }
 
 // example: drawGraphSkeleton("CO2", getCO2(), 1); 
@@ -184,13 +170,54 @@ void drawGraphPoints(DataQueue q, uint8_t pos) {
     }
 }
 
-void screenPrint(String message) {
+void drawCenteredMessage(const char* message) {
     display.setFullWindow();
     display.fillScreen(GxEPD_WHITE);
     display.setFont(&Rubik_Regular12pt7b);
     display.setTextColor(GxEPD_BLACK);
-    display.setCursor(21, 90);
+
+    int16_t textX, textY;
+    uint16_t textWidth, textHeight;
+    display.getTextBounds(message, 0, 120, &textX, &textY, &textWidth, &textHeight);
+    display.setCursor((display.width() - textWidth) / 2 - textX, 120);
     display.print(message);
+    display.display(false);
+}
+
+void drawPairingStatus(PairingDisplayStatus status) {
+    page1 = false;
+    display.setFullWindow();
+    display.fillScreen(GxEPD_WHITE);
+    display.setTextColor(GxEPD_BLACK);
+    display.setFont(&Rubik_Regular12pt7b);
+
+    auto printCentered = [](const char* text, int16_t baselineY) {
+        int16_t textX, textY;
+        uint16_t textWidth, textHeight;
+        display.getTextBounds(text, 0, baselineY, &textX, &textY, &textWidth, &textHeight);
+        display.setCursor((display.width() - textWidth) / 2 - textX, baselineY);
+        display.print(text);
+    };
+
+    // Center the 64 px pairing bitmap
+    constexpr int16_t bitmapX = (416 - PAIRING_WIDTH) / 2;
+    constexpr int16_t bitmapY = (160 - PAIRING_HEIGHT) / 2;
+
+    switch (status) {
+    case PairingDisplayStatus::Pairing:
+        display.drawBitmap(bitmapX, bitmapY, pairing_bitmap, PAIRING_WIDTH, PAIRING_HEIGHT, GxEPD_BLACK);
+        printCentered("Pairing with PM", 150);
+        break;
+    case PairingDisplayStatus::Paired:
+        display.drawBitmap(bitmapX, bitmapY, paired_bitmap, PAIRING_WIDTH, PAIRING_HEIGHT, GxEPD_BLACK);
+        printCentered("Pairing Successful", 150);
+        break;
+    case PairingDisplayStatus::TimedOut:
+        display.drawBitmap(bitmapX, bitmapY, pairing_bitmap, PAIRING_WIDTH, PAIRING_HEIGHT, GxEPD_BLACK);
+        printCentered("Pairing Timed Out", 150);
+        break;
+    }
+
     display.display(false);
 }
 

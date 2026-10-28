@@ -442,20 +442,23 @@ uint16_t Max31328::get_time(max31328_time_t* time)
     if(!rtn_val)
     {
         rtn_val = read(r_adrs,(char *) data, 3);
-        
-        time->seconds = bcd_2_uchar(data[0]);
-        time->minutes = bcd_2_uchar(data[1]);
-        time->am_pm = (data[2]&AM_PM);
-        time->mode = (data[2]&MODE);
-        
-        if(time->mode)
+
+        if (!rtn_val)
         {
-            time->hours = bcd_2_uchar((data[2]&0x1F));
+            time->seconds = bcd_2_uchar(data[0]);
+            time->minutes = bcd_2_uchar(data[1]);
+            time->am_pm = (data[2]&AM_PM);
+            time->mode = (data[2]&MODE);
+
+            if(time->mode)
+            {
+                time->hours = bcd_2_uchar((data[2]&0x1F));
+            }
+            else
+            {
+                time->hours = bcd_2_uchar((data[2]&0x3F));
+            }
         }
-        else
-        {
-            time->hours = bcd_2_uchar((data[2]&0x3F));
-        }  
     } 
   
     return(rtn_val);
@@ -499,11 +502,14 @@ uint16_t Max31328::get_calendar(max31328_calendar_t* calendar)
     if(!rtn_val)
     {
         rtn_val = read(r_adrs,(char *) data, 4);
-        
-        calendar->day = bcd_2_uchar(data[0]);
-        calendar->date = bcd_2_uchar(data[1]);
-        calendar->month = bcd_2_uchar((data[2]&0x1F));
-        calendar->year = bcd_2_uchar(data[3]);
+
+        if (!rtn_val)
+        {
+            calendar->day = bcd_2_uchar(data[0]);
+            calendar->date = bcd_2_uchar(data[1]);
+            calendar->month = bcd_2_uchar((data[2]&0x1F));
+            calendar->year = bcd_2_uchar(data[3]);
+        }
     } 
   
     return(rtn_val);
@@ -658,9 +664,12 @@ uint16_t Max31328::get_cntl_stat_reg(max31328_cntl_stat_t* data)
     if(!rtn_val)
     {
         rtn_val = read(r_adrs,(char *) local_data, 2);
-        
-        data->control = local_data[0];
-        data->status = local_data[1];
+
+        if (!rtn_val)
+        {
+            data->control = local_data[0];
+            data->status = local_data[1];
+        }
     } 
   
     return(rtn_val);

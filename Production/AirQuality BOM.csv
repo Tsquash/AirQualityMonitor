@@ -1,0 +1,26 @@
+Reference,Qty,Value,Footprint,,
+BAT1,1,BAT-HLD-001,AirQualityFootprints:BAT_BAT-HLD-001,,
+"C1,C3,C4,C5,C6,C7,C8,C10,C12,C16,C17,C18",12,1uF,Capacitor_SMD:C_0603_1608Metric,,
+"C2,C11",2,4.7uF,Capacitor_SMD:C_0603_1608Metric,,
+C9,1,100nF,Capacitor_SMD:C_0603_1608Metric,,
+C13,1,10uF,Capacitor_SMD:C_0603_1608Metric,,
+"C14,C15",2,220nF,Capacitor_SMD:C_0603_1608Metric,,*need to desolder two
+"D1,D2,D3",3,1N5819,Diode_SMD:D_SOD-123,,
+J1,1,FH34SRJ-24S-0.5SH_50_,AirQualityFootprints:HRS_FH34SRJ-24S-0.5SH_50_,,
+J2,1,UJ20-C-V-C-1-SMT-TR,AirQualityFootprints:CUI_UJ20-C-V-C-1-SMT-TR,,
+L1,1,68uH,Inductor_SMD:L_0805_2012Metric,,
+Q1,1,Si1308EDL,Package_TO_SOT_SMD:SOT-323_SC-70,,
+"R1,R2",2,4.7K,Resistor_SMD:R_0603_1608Metric,,
+R3,1,DNP,Resistor_SMD:R_0603_1608Metric,,
+R4,1,0.47,Resistor_SMD:R_0603_1608Metric,,
+R5,1,10K/0,Resistor_SMD:R_0603_1608Metric,,
+"R6,R7",2,100K,Resistor_SMD:R_0603_1608Metric,,
+R8,1,10K,Resistor_SMD:R_0603_1608Metric,,
+R9,1,4.7,Resistor_SMD:R_0603_1608Metric,,
+"R10,R11",2,5.1K,Resistor_SMD:R_0603_1608Metric,,
+"S1,S2",2,TL3330AF260QG,AirQualityFootprints:SW_TL3330AF260QG,,
+U1,1,SCD41-D-R2,AirQualityFootprints:QFN20_SCD41-D-R2_SEN,,
+U2,1,XIAO-ESP32-C6,AirQualityFootprints:XIAO-ESP32C6-DIP,,*need to desolder one
+U3,1,DHT20,Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical,,*need to desolder one
+U4,1,MAX31328NELB+T,AirQualityFootprints:21-0140AK_L1055M-1_MXM,,*need to desolder one
+U5,1,SGP41-D-R4,AirQualityFootprints:XDCR_SGP41-D-R4,,

@@ -2,7 +2,6 @@
 #include <algorithm>
 #include <Arduino.h>
 #include "sense.h"
-// #include "screen.h" // TODO: add back? do i want to error on screen
 #include "utils.h"
 #include <Wire.h>
 #include <time.h>
@@ -26,8 +25,6 @@ VOCGasIndexAlgorithm voc_algorithm;
 NOxGasIndexAlgorithm nox_algorithm;
 
 // State Variables
-int32_t currentVocIndex = 0;
-int32_t currentNoxIndex = 0;
 unsigned long lastGasTick = 0;
 uint16_t conditioning_countdown = 10; // Seconds of NOx conditioning needed on boot
 
@@ -70,16 +67,6 @@ bool initializeSensors()
   return success;
 }
 
-void initGasAlgorithms() {
-    int32_t index_offset, learning_time_offset_hours, learning_time_gain_hours, gating_max_duration_minutes, std_initial, gain_factor;
-  
-    // Initialize VOC Params
-    voc_algorithm.get_tuning_parameters(index_offset, learning_time_offset_hours, learning_time_gain_hours, gating_max_duration_minutes, std_initial, gain_factor);
-    
-    // Initialize NOx Params
-    nox_algorithm.get_tuning_parameters(index_offset, learning_time_offset_hours, learning_time_gain_hours, gating_max_duration_minutes, std_initial, gain_factor);
-}
-
 // DHT Functions
 bool updateDHT()
 {
@@ -89,8 +76,9 @@ bool updateDHT()
   {
   case DHT20_OK:
     tempC = DHT.getTemperature();
+    humidity = DHT.getHumidity();
     TEMP = (int)round((static_cast<double>(tempC) * 1.8) + 32.0);
-    RH = (int)round(static_cast<double>(DHT.getHumidity()));
+    RH = (int)round(static_cast<double>(humidity));
     return true;
   case DHT20_ERROR_CHECKSUM:
     Serial.print("[DHT] Checksum error");
@@ -116,16 +104,6 @@ bool updateDHT()
   }
   Serial.print("\n");
   return false;
-}
-
-double getTemp()
-{
-  return static_cast<double>(tempC);
-}
-
-double getHumidity()
-{
-  return static_cast<double>(humidity);
 }
 
 // SGP41 Functions
@@ -165,11 +143,9 @@ void processGasSensors() {
                 printSensirionError(error, "SGP41 executeConditioning");
             } else {
                 // We CAN feed VOC during conditioning
-                currentVocIndex = voc_algorithm.process(srawVoc);
+                (void)voc_algorithm.process(srawVoc);
                 // We CANNOT feed NOx yet (value is 0/invalid)
-                currentNoxIndex = 0; 
                 conditioning_countdown--;
-                // Serial.println("[SGP41] Conditioning...");
             }
         } else {
             // Case B: Normal Operation
@@ -178,11 +154,8 @@ void processGasSensors() {
                 printSensirionError(error, "SGP41 measureRawSignals");
             } else {
                 // Feed both algorithms
-                currentVocIndex = voc_algorithm.process(srawVoc);
-                currentNoxIndex = nox_algorithm.process(srawNox);
-                // Serial.printf("[SGP41] VOC: %d, NOx: %d\n", currentVocIndex, currentNoxIndex);
-                NOx = currentNoxIndex;
-                VOC = currentVocIndex;
+                VOC = voc_algorithm.process(srawVoc);
+                NOx = nox_algorithm.process(srawNox);
             }
         }
     }
@@ -190,11 +163,6 @@ void processGasSensors() {
 
 int32_t getVOCIndex() { return VOC; }
 int32_t getNOxIndex() { return NOx; }
-void printSGP() {
-  Serial.printf("[SGP41] VOC Index: %d\n", getVOCIndex());
-  Serial.printf("[SGP41] NOx Index: %d\n", getNOxIndex());
-}
-
 // SCD41 Functions
 int getCO2()
 {
@@ -283,10 +251,11 @@ bool setRTCAlarms()
   alarm2.day = 1;
   alarm2.date = 1;
 
-  max31328_cntl_stat_t regs;
+  max31328_cntl_stat_t regs{};
   if (RTC.get_cntl_stat_reg(&regs))
   {
     Serial.println("[RTC] ERROR: Cannot read control register.");
+    return false;
   }
 
   regs.control |= INTCN | A1IE | A2IE;
@@ -295,6 +264,7 @@ bool setRTCAlarms()
   if (RTC.set_cntl_stat_reg(regs))
   {
     Serial.println("[RTC] ERROR: Cannot set control register.");
+    return false;
   }
   // Set Alarm 1
   if (RTC.set_alarm(alarm1, true))
@@ -313,8 +283,12 @@ bool setRTCAlarms()
 
 void clearRTCInt()
 {
-  max31328_cntl_stat_t regs;
-  RTC.get_cntl_stat_reg(&regs);
+  max31328_cntl_stat_t regs{};
+  if (RTC.get_cntl_stat_reg(&regs))
+  {
+    Serial.println("[RTC] ERROR: Cannot read control/status registers while clearing interrupt.");
+    return;
+  }
   // Alarm 1 fired
   if (regs.status & A1F)
     minute_interrupt = false;
@@ -322,7 +296,8 @@ void clearRTCInt()
   else
     minute_interrupt = true;
   regs.status = 0;
-  RTC.set_cntl_stat_reg(regs);
+  if (RTC.set_cntl_stat_reg(regs))
+    Serial.println("[RTC] ERROR: Cannot clear interrupt status flags.");
 }
 
 bool rtcLostPower()
@@ -349,7 +324,6 @@ bool setRTCTime(uint32_t hour, uint32_t minute, uint32_t second)
   if (error != 0)
   {
     Serial.println("[RTC] Unable to set RTC time from NTP");
-    // TODO: add when B&W screenPrint("Unable to set time on RTC from NTP given these WiFi credentials. Restart device and try again.");
     return false;
   }
   return true;
@@ -379,7 +353,6 @@ bool setRTCdate(uint32_t weekday, uint32_t date, uint32_t month, uint32_t year)
   if (error != 0)
   {
     Serial.println("[RTC] Unable to set RTC date from NTP");
-    // TODO: add when B&W screenPrint("Unable to set date on RTC from NTP given these WiFi credentials. Restart device and try again.");
     return false;
   }
   return true;
@@ -387,42 +360,18 @@ bool setRTCdate(uint32_t weekday, uint32_t date, uint32_t month, uint32_t year)
 
 max31328_time_t getRTCTime()
 {
-  max31328_time_t time;
-  RTC.get_time(&time);
+  max31328_time_t time{0, 0, 12, false, true};
+  if (RTC.get_time(&time))
+    Serial.println("[RTC] ERROR: Cannot read time; using safe fallback.");
   return time;
 }
 
 max31328_calendar_t getRTCcal()
 {
-  max31328_calendar_t cal;
-  RTC.get_calendar(&cal);
+  max31328_calendar_t cal{1, 1, 1, 0};
+  if (RTC.get_calendar(&cal))
+    Serial.println("[RTC] ERROR: Cannot read calendar; using safe fallback.");
   return cal;
-}
-
-bool setRTCFromSystemTimeIfValid()
-{
-  time_t now = time(nullptr);
-  // Consider system time valid only after SNTP has set it.
-  // 1704067200 = 2024-01-01 00:00:00 UTC
-  if (now < 1704067200)
-  {
-    return false;
-  }
-
-  struct tm timeinfo;
-  if (!localtime_r(&now, &timeinfo))
-  {
-    return false;
-  }
-
-  bool okTime = setRTCTime(timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
-  bool okDate = setRTCdate(timeinfo.tm_wday, timeinfo.tm_mday, timeinfo.tm_mon + 1, timeinfo.tm_year + 1900);
-  if (okTime && okDate)
-  {
-    Serial.println("[RTC] Hardware RTC updated from system time");
-    return true;
-  }
-  return false;
 }
 
 void setRTCFromNTP()

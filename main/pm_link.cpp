@@ -60,9 +60,16 @@ static int timingWritten(uint16_t, const ble_gatt_error *error, ble_gatt_attr *,
 }
 
 static void writeTiming(uint32_t untilMeasurement) {
+    PMTiming timing{untilMeasurement, 0, 0, 0};
+    if (untilMeasurement != UINT32_MAX) {
+        const auto time = getRTCTime();
+        timing.hour = time.hours;
+        timing.minute = time.minutes;
+        timing.second = time.seconds;
+    }
     busy = true;
-    int rc = ble_gattc_write_flat(connection, valueHandle, &untilMeasurement,
-                                 sizeof(untilMeasurement), timingWritten, nullptr);
+    int rc = ble_gattc_write_flat(connection, valueHandle, &timing,
+                                 sizeof(timing), timingWritten, nullptr);
     if (rc) failLink(rc);
 }
 
