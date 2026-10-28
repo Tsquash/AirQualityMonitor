@@ -112,14 +112,14 @@ After a factory reset, the device restarts and displays its Matter commissioning
 
 The AQM measures or receives the following values:
 
-- **CO2:** measured by the SCD41 and reported in ppm
+- ☁️ **CO2:** measured by the SCD41 and reported in ppm
   - +/- (50 ppm + 2.5% of the reading) from 400 to 1,000 ppm
   - +/- (50 ppm + 3% of the reading) from 1,001 to 2,000 ppm
   - +/- (40 ppm + 5% of the reading) from 2,001 to 5,000 ppm
-- **Temperature and relative humidity:** measured by the DHT20
+- 🌡️**Temperature and 💧relative humidity:** measured by the DHT20
   - Temperature accuracy: +/- 0.75 degrees C
   - Relative-humidity accuracy: +/- 4% RH
-- **VOC and NOx indices:** measured by the SGP41 and calculated with the
+- 🍃**VOC and 💨 NOx indices:** measured by the SGP41 and calculated with the
   Sensirion Gas Index Algorithm
   - VOC's long-term average is 100; lower values indicate improving conditions
     and higher values indicate worsening conditions
