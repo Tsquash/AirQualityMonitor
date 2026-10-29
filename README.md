@@ -11,6 +11,9 @@ Low Energy (BLE) to add PM2.5 and PM10 measurements to its existing Matter endpo
 - **MCU:** Seeed Studio XIAO ESP32-C6
 - **Carbon-dioxide sensor:** Sensirion SCD41
 - **Temperature and humidity sensor:** ASAIR DHT20
+  - Before assembly, pry open the DHT20 module's plastic case and desolder its
+    two 10 kΩ I2C pull-up resistors. The AQM PCB already supplies the I2C
+    pull-ups, so leaving the module's resistors may cause unexpected errors
 - **VOC and NOx sensor:** Sensirion SGP41
   - uses the Sensirion Gas Index Algorithm
 - **RTC:** Analog Devices MAX31328
@@ -120,12 +123,20 @@ The AQM measures or receives the following values:
   - Temperature accuracy: +/- 0.75 degrees C
   - Relative-humidity accuracy: +/- 4% RH
 - 🍃 **VOC and 💨 NOx indices:** measured by the SGP41 and calculated with the
-  Sensirion Gas Index Algorithm
-  - VOC's long-term average is 100; lower values indicate improving conditions
+  [Sensirion Gas Index Algorithm](https://sensirion.com/products/downloads?category=Gas+analyzers)
+  as unitless index points from 1 to 500; they are relative air-quality signals,
+  not measured gas concentrations
+  - VOC's long-term average is 100, lower values indicate improving conditions
     and higher values indicate worsening conditions
-  - NOx's typical baseline is 1; values above 1 indicate NOx events
+  - NOx's typical baseline is 1, values above 1 indicate NOx events
   - Allow approximately one hour for reliable VOC detection and six hours for
     reliable NOx event detection after startup
+  - Matter has concentration-measurement clusters for these readings but no
+    unit for index points. For compatibility, the firmware
+    currently publishes each index through its corresponding concentration
+    cluster with the unit set to `µg/m³`. That displayed unit is incorrect:
+    the numeric values are still unitless VOC and NOx indices and must not be
+    interpreted as physical concentrations.
 - **PM1.0, PM2.5, and PM10:** received in micrograms per cubic meter from a
   linked Matter PM sensor
 
@@ -148,7 +159,35 @@ pio device monitor -b 115200
 The PlatformIO environment is defined in [`platformio.ini`](platformio.ini).
 The project uses the Arduino and ESP-IDF frameworks and is configured for the
 `seeed_xiao_esp32c6` board. Serial diagnostics run at 115200 baud. Upload-port
-selection may need to be configured for the host computer.
+selection may need to be configured for the host computer. A clean or first
+compile can take 10 minutes or longer while PlatformIO builds the ESP-IDF and
+Matter dependencies, but later incremental builds are faster since the build is cached.
+
+### Bundled MAX31328 library
+
+[`lib/Max31328RTC`](lib/Max31328RTC) is a local fork of Analog Devices'
+[MAX31328 Arduino Driver](https://github.com/analogdevicesinc/MAX31328-Arduino-Driver).
+The upstream library did not work unchanged with the ESP32-C6, so this fork:
+
+- leaves I2C initialization to the firmware instead of calling `Wire.begin()`
+  from the RTC constructor, which would initialize the bus before the AQM
+  assigns its SDA and SCL pins;
+- casts the write buffer to the byte-pointer type required by the ESP32-C6
+  Arduino `Wire.write()` overload, fixing the compile error; and
+- updates the time, calendar, and control/status output structures only after a
+  successful I2C read, preventing failed reads from copying invalid data.
+
+The upstream driver is licensed under Apache-2.0, which permits modification
+and redistribution. The fork retains the upstream copyright and modification
+notices and includes the complete license at
+[`lib/Max31328RTC/LICENSE.txt`](lib/Max31328RTC/LICENSE.txt).
+
+## License
+
+The original firmware, PCB and schematic files, manufacturing files, enclosure
+files, UI assets, and documentation in this repository are available under the
+[Apache License 2.0](LICENSE). You may use,
+modify, manufacture from, and share, the original or modified project, provided that you follow the license terms :)
 
 ## Project layout
 
@@ -164,6 +203,7 @@ Production/            Manufacturing BOMs and Gerber archive
 UI/                    Display mockups, fonts, and bitmaps
 .vscode/               VS Code project configuration
 platformio.ini         PlatformIO build environment
+LICENSE                Apache License 2.0 project license
 sdkconfig.defaults.*   ESP-IDF default configurations
 huge_app.csv           ESP-IDF flash partition table
 ```
