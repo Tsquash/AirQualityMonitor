@@ -1,8 +1,8 @@
 # Air Quality Monitor
 
 AQM is an ESP32-C6-based, Matter compatible, indoor air-quality monitor. It measures carbon
-dioxide, temperature, humidity, VOC, and NOx, displays the latest readings on an e-paper  
-display, and publishes its measurements through Matter over Wi-Fi. It can also pair with  
+dioxide, temperature, humidity, VOC, and NOx, displays the latest readings on an e-paper
+display, and publishes its measurements through Matter over Wi-Fi. It can also pair with
 the companion PM sensor [particle](https://github.com/Tsquash/particle/) over Bluetooth
 Low Energy (BLE) to add PM2.5 and PM10 measurements to its existing Matter endpoint.
 
@@ -17,7 +17,7 @@ Low Energy (BLE) to add PM2.5 and PM10 measurements to its existing Matter endpo
 - **VOC and NOx sensor:** Sensirion SGP41
   - uses the Sensirion Gas Index Algorithm
 - **RTC:** Analog Devices MAX31328
-- **Display:** 3.7-inch, 416 x 240 pixel monochrome e-paper display 
+- **Display:** 3.7-inch, 416 x 240 pixel monochrome e-paper display
   - GDEY037T03 panel/UC8253 driver, driven with GxEPD2 and Adafruit GFX libaries
 - **PM interconnect:** BLE link to the companion Matter PM sensor
 - **Enclosure:** acrylic sandwich-style enclosure
@@ -44,17 +44,17 @@ The primary pin assignments are defined in
 ### Matter commissioning
 
 The AQM is a Matter-over-Wi-Fi device and requires a 2.4 GHz Wi-Fi network and a
-Matter controller. On an uncommissioned device, the display shows the Matter  
-QR code and manual pairing code. Scan the QR code with a Matter-compatible  
-controller app and complete the app's setup flow for Matter devices. This project  
-uses Matter development credentials and is not Matter-certified, so the controller  
+Matter controller. On an uncommissioned device, the display shows the Matter
+QR code and manual pairing code. Scan the QR code with a Matter-compatible
+controller app and complete the app's setup flow for Matter devices. This project
+uses Matter development credentials and is not Matter-certified, so the controller
 may ask for confirmation before adding it. Although all devices have the same pairing
 code, multiple AQM devices on one network is tested working.
 
 After commissioning, the AQM obtains local time over the network. It determines
 the UTC offset from `https://ipapi.co/utc_offset/`, synchronizes system time with
 `pool.ntp.org`, writes that time to the MAX31328 RTC, and attempts another RTC
-sync once per hour. The hourly sync re-queries the current UTC offset, and supports DST.  
+sync once per hour. The hourly sync re-queries the current UTC offset, and supports DST.
 If the RTC already contains valid time, the local display can continue operating
 before Matter commissioning completes.
 
@@ -108,7 +108,7 @@ other AQM sensing and display functions continue without a linked PM sensor.
 | Bottom | 1 | Enter PM-pairing mode and replace the previously saved PM peer after successful pairing | Change display page |
 
 A boot action requires the button to be held continuously for at least one second
-during the two-second startup check. Factory reset takes priority if both buttons are held. 
+during the two-second startup check. Factory reset takes priority if both buttons are held.
 After a factory reset, the device restarts and displays its Matter commissioning screen.
 
 ## Readings
