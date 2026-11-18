@@ -1,10 +1,12 @@
 # Air Quality Monitor
 
-AQM is an ESP32-C6-based, Matter compatible, indoor air-quality monitor. It measures carbon
+AQM is an ESP32C6 based, Matter compatible, indoor air quality monitor. It measures carbon
 dioxide, temperature, humidity, VOC, and NOx, displays the latest readings on an e-paper
 display, and publishes its measurements through Matter over Wi-Fi. It can also pair with
 the companion PM sensor [particle](https://github.com/Tsquash/particle/) over Bluetooth
 Low Energy (BLE) to add PM2.5 and PM10 measurements to its existing Matter endpoint.
+
+<img width="5712" height="4284" alt="IMG_1851" src="https://github.com/user-attachments/assets/eef4e69c-3a37-4ebd-abb5-11f866926624" />
 
 ## Hardware
 
@@ -47,7 +49,7 @@ The AQM is a Matter-over-Wi-Fi device and requires a 2.4 GHz Wi-Fi network and a
 Matter controller. On an uncommissioned device, the display shows the Matter
 QR code and manual pairing code. Scan the QR code with a Matter-compatible
 controller app and complete the app's setup flow for Matter devices. This project
-uses Matter development credentials and is not Matter-certified, so the controller
+uses Matter development credentials and is not Matter certified, so the controller
 may ask for confirmation before adding it. Although all devices have the same pairing
 code, multiple AQM devices on one network is tested working.
 
@@ -68,13 +70,13 @@ update the Matter attributes, and append CO2, VOC, and NOx values to the
 redrawn.
 
 The main page shows the date, time, temperature, relative humidity, CO2, VOC,
-NOx, and the overall air-quality level. The second page graphs the most recent
+NOx, and the overall air quality level. The second page graphs the most recent
 60 one-minute CO2, VOC, and NOx readings. The display performs a full refresh at
 `:00` and `:30` each hour and uses partial refreshes between them.
 
 ### Linked to a PM sensor
 
-The AQM can pair with the companion Matter PM sensor over BLE.
+The AQM can pair with the companion particle device over BLE.
 
 #### Pairing protocol
 
@@ -82,7 +84,7 @@ Put both devices into pairing mode and keep them nearby:
 
 1. Hold the AQM's bottom button while booting it. Release the button when the
    AQM displays `Pairing with PM`.
-2. Start or restart the PM sensor in pairing mode. A new PM sensor automatically
+2. Start or restart the particle in pairing mode. A new device automatically
    enters pairing mode on its first boot. On later boots, hold its pair
    button or factory reset button  to force another pairing attempt.
 3. Leave both devices powered and nearby until each displays `Pairing
@@ -90,14 +92,18 @@ Put both devices into pairing mode and keep them nearby:
 
 The devices discover and authenticate each other automatically. If either device displays `Pairing
 Timed Out`, put both devices back into pairing mode and retry with them nearby.
-On success, the PM peer is saved in non-volatile storage and the AQM reconnects
+On success, the particle is saved in non-volatile storage and the AQM reconnects
 to it automatically on later boots.
 
-The AQM sends its RTC time and measurement schedule to the PM sensor. The PM
+A successful pairing sequence looks like this: 
+
+https://github.com/user-attachments/assets/0cc2ac51-334b-4b39-894b-26a2c80b5b1c
+
+The AQM sends its RTC time and measurement schedule to the PM device. The PM
 sensor returns one-minute PM1.0, PM2.5, and PM10 averages, which the AQM exposes
 through Matter. If the BLE connection is interrupted, the AQM retains the last
 PM reading for up to three missed minutes and clears it after the fourth. All
-other AQM sensing and display functions continue without a linked PM sensor.
+other AQM sensing and display functions continue without a linked particle.
 
 ## Buttons
 
@@ -115,17 +121,16 @@ After a factory reset, the device restarts and displays its Matter commissioning
 
 The AQM measures or receives the following values:
 
-- ☁️ **CO2:** measured by the SCD41 and reported in ppm
+- **CO2:** measured by the SCD41 and reported in ppm (Symbol: C02)
   - +/- (50 ppm + 2.5% of the reading) from 400 to 1,000 ppm
   - +/- (50 ppm + 3% of the reading) from 1,001 to 2,000 ppm
   - +/- (40 ppm + 5% of the reading) from 2,001 to 5,000 ppm
-- 🌡️ **Temperature and 💧relative humidity:** measured by the DHT20
+- **Temperature and relative humidity:** measured by the DHT20 (Symbols: 🌡️ for temperature and 💧 for RH)
   - Temperature accuracy: +/- 0.75 degrees C
   - Relative-humidity accuracy: +/- 4% RH
-- 🍃 **VOC and 💨 NOx indices:** measured by the SGP41 and calculated with the
+- **VOC and  NOx indices:** measured by the SGP41 and calculated with the
   [Sensirion Gas Index Algorithm](https://sensirion.com/products/downloads?category=Gas+analyzers)
-  as unitless index points from 1 to 500; they are relative air-quality signals,
-  not measured gas concentrations
+  as unitless index points from 1 to 500 (Symbols: 🍃 for VOC and 💨 for NOx)
   - VOC's long-term average is 100, lower values indicate improving conditions
     and higher values indicate worsening conditions
   - NOx's typical baseline is 1, values above 1 indicate NOx events
@@ -134,20 +139,21 @@ The AQM measures or receives the following values:
   - Matter has concentration-measurement clusters for these readings but no
     unit for index points. For compatibility, the firmware
     currently publishes each index through its corresponding concentration
-    cluster with the unit set to `µg/m³`. That displayed unit is incorrect:
-    the numeric values are still unitless VOC and NOx indices and must not be
+    cluster with the unit set to `µg/m³`. That displayed unit is incorrect.
+    The numeric values are still unitless VOC and NOx indices and should not be
     interpreted as physical concentrations.
 - **PM1.0, PM2.5, and PM10:** received in micrograms per cubic meter from a
-  linked Matter PM sensor
+  linked particle device
 
-The overall air-quality value is the worst of the current CO2, VOC, NOx, PM1.0,
+The overall air quality value (Symbol: Dot cube) is the worst of the current CO2, VOC, NOx, PM1.0,
 PM2.5, and PM10 bands. It is reported as Good, Fair, Moderate, Poor, Very Poor,
-or Extremely Poor.
+or Extremely Poor. These are based on online air quality guidelines, and should 
+not be treated as a source of truth!
 
 ## Build, upload, and serial output
 
 Install [PlatformIO](https://platformio.org/) and the Espressif platform
-dependencies, connect the XIAO ESP32-C6, then run these commands from the
+dependencies, connect the XIAO ESP32C6, then run these commands from the
 project directory:
 
 ```sh
@@ -167,14 +173,14 @@ Matter dependencies, but later incremental builds are faster since the build is 
 
 [`lib/Max31328RTC`](lib/Max31328RTC) is a local fork of Analog Devices'
 [MAX31328 Arduino Driver](https://github.com/analogdevicesinc/MAX31328-Arduino-Driver).
-The upstream library did not work unchanged with the ESP32-C6, so this fork:
+The upstream library did not work unchanged with the ESP32C6, so this fork:
 
 - leaves I2C initialization to the firmware instead of calling `Wire.begin()`
   from the RTC constructor, which would initialize the bus before the AQM
   assigns its SDA and SCL pins;
-- casts the write buffer to the byte-pointer type required by the ESP32-C6
-  Arduino `Wire.write()` overload, fixing the compile error; and
-- updates the time, calendar, and control/status output structures only after a
+- Casts the write buffer to the byte-pointer type required by the ESP32C6
+  Arduino `Wire.write()` overload, fixing the compile error
+- Updates the time, calendar, and control/status output structures only after a
   successful I2C read, preventing failed reads from copying invalid data.
 
 The upstream driver is licensed under Apache-2.0, which permits modification
@@ -213,7 +219,7 @@ The primary firmware files are:
 - [`main/main.cpp`](main/main.cpp): boot flow, Matter startup, scheduling, and
   the main loop
 - [`main/sense.cpp`](main/sense.cpp): sensor initialization and sampling, gas
-  indices, RTC alarms, network time, and overall air-quality calculation
+  indices, RTC alarms, network time, and overall air quality calculation
 - [`main/screen.cpp`](main/screen.cpp): e-paper initialization, status screens,
   measurement pages, and history graphs
 - [`main/buttons.cpp`](main/buttons.cpp): boot-hold detection and display-page
